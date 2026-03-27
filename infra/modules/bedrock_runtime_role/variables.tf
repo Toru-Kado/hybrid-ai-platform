@@ -32,6 +32,12 @@ variable "inference_profile_arns" {
   default     = []
 }
 
+variable "guardrail_arns" {
+  description = "Optional Bedrock guardrail ARNs this role can apply."
+  type        = list(string)
+  default     = []
+}
+
 variable "assets_bucket_arn" {
   description = "ARN of the S3 bucket used for prompt and artifact storage."
   type        = string

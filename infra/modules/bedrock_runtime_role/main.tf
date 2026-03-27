@@ -89,6 +89,19 @@ data "aws_iam_policy_document" "runtime_access" {
     resources = local.invoke_resources
   }
 
+  dynamic "statement" {
+    for_each = length(var.guardrail_arns) > 0 ? [1] : []
+
+    content {
+      sid    = "ApplyBedrockGuardrails"
+      effect = "Allow"
+      actions = [
+        "bedrock:ApplyGuardrail"
+      ]
+      resources = var.guardrail_arns
+    }
+  }
+
   statement {
     sid    = "ListAssetsBucket"
     effect = "Allow"

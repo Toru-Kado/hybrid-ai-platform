@@ -27,6 +27,19 @@ Why:
 - If your organization standardizes on inference profiles, set `BEDROCK_INFERENCE_PROFILE_ARN` and let the app use that instead of a direct model ID
 - Do not put an ARN into `BEDROCK_MODEL_ID`; keep that variable as a plain Bedrock model ID
 
+## Guardrail Attachment Model
+
+This starter treats Bedrock guardrails as optional and attachable per flow.
+
+- `BEDROCK_GUARDRAIL_MODE=off`
+  The app omits `guardrailConfig` completely.
+- `BEDROCK_GUARDRAIL_MODE=user`
+  The app attaches `guardrailConfig` and wraps only the user prompt in `guardContent`.
+- `BEDROCK_GUARDRAIL_MODE=all`
+  The app attaches `guardrailConfig` and wraps both the user prompt and the system prompt in `guardContent`.
+
+That makes it easy to keep internal orchestration prompts less constrained while applying Bedrock guardrails to user-facing prompts.
+
 ## Configuration Variables
 
 - `AWS_REGION`: region for the Bedrock runtime client
@@ -46,6 +59,7 @@ For the local CLI, your active AWS identity needs:
 - access to the exact resource you invoke, which means:
 - the selected foundation model ID if you call Bedrock directly
 - the selected inference profile ARN if you use `BEDROCK_INFERENCE_PROFILE_ARN`
+- `bedrock:ApplyGuardrail` on the selected guardrail ARN if you use Bedrock guardrails
 
 The Terraform-created IAM role is intended for future AWS-hosted workloads. It also includes:
 
@@ -59,6 +73,13 @@ If you use an inference profile:
 - set `BEDROCK_INFERENCE_PROFILE_ARN` in `.env`
 - add that same ARN to `bedrock_allowed_inference_profile_arns` in `infra/environments/dev/terraform.tfvars`
 - make sure your local AWS user or profile can invoke that profile as well
+
+If you use a Bedrock guardrail:
+
+- set `BEDROCK_GUARDRAIL_IDENTIFIER` and `BEDROCK_GUARDRAIL_VERSION` in `.env`
+- set `BEDROCK_GUARDRAIL_MODE` to `user` or `all`
+- add the guardrail ARN to `bedrock_allowed_guardrail_arns` in `infra/environments/dev/terraform.tfvars`
+- make sure your local AWS user or profile can call `bedrock:ApplyGuardrail` on that ARN
 
 ## Latency and Cost Notes
 

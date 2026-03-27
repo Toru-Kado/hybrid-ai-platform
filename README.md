@@ -48,6 +48,7 @@ Edit `.env` and set at least:
 - `AWS_REGION`
 - `AWS_PROFILE`
 - `BEDROCK_MODEL_ID` or `BEDROCK_INFERENCE_PROFILE_ARN`
+- optional: `BEDROCK_GUARDRAIL_IDENTIFIER` + `BEDROCK_GUARDRAIL_VERSION`
 
 Example:
 
@@ -86,6 +87,7 @@ Review these values before apply:
 - `aws_profile`
 - `bedrock_allowed_model_ids`
 - `bedrock_allowed_inference_profile_arns`
+- `bedrock_allowed_guardrail_arns`
 - `runtime_role_trusted_principal_arns`
 - `ai_assets_bucket_force_destroy`
 
@@ -102,6 +104,9 @@ Terraform creates:
 - An encrypted S3 bucket for prompts, datasets, and generated artifacts
 - A CloudWatch log group for assistant-related workloads
 - An IAM role for future Bedrock-powered AWS runtimes
+
+If you plan to use Bedrock guardrails, add the target guardrail ARN to
+`bedrock_allowed_guardrail_arns`.
 
 ### 5. Copy useful Terraform outputs into `.env`
 
@@ -138,6 +143,35 @@ Or, after install:
 ```bash
 hybrid-assistant --prompt "List two extension ideas for this starter."
 ```
+
+## Optional Bedrock Guardrails
+
+Bedrock guardrails are optional in this starter.
+
+- If you leave `BEDROCK_GUARDRAIL_IDENTIFIER` and `BEDROCK_GUARDRAIL_VERSION` empty, the app sends plain `Converse` requests with no `guardrailConfig`.
+- If you set them, the app can attach guardrails selectively.
+
+`BEDROCK_GUARDRAIL_MODE` supports:
+
+- `off`
+  Omit Bedrock guardrails completely.
+- `user`
+  Attach Bedrock guardrails and assess only the user prompt.
+- `all`
+  Attach Bedrock guardrails and assess both the user prompt and the system prompt.
+
+You can override this per run:
+
+```bash
+python -m app --guardrails user --prompt "Review this customer-facing response."
+python -m app --guardrails off --prompt "Summarize these internal architecture notes."
+```
+
+This gives you a simple layered model:
+
+- custom application logic
+- optional Bedrock guardrails
+- model-level safety defaults
 
 ## Example Commands
 
@@ -183,7 +217,7 @@ This repository keeps local development lightweight and pushes model inference t
 JSON log example:
 
 ```json
-{"timestamp":"2026-03-27T00:00:00+00:00","level":"INFO","logger":"app.services.chat","message":"Bedrock prompt completed","service":"hybrid-ai-assistant","environment":"dev","aws_region":"us-east-1","model_id":"anthropic.claude-3-5-sonnet-20241022-v2:0","request_id":"...","latency_ms":1234}
+{"timestamp":"2026-03-27T00:00:00+00:00","level":"INFO","logger":"app.services.chat","message":"Bedrock prompt completed","service":"hybrid-ai-assistant","environment":"dev","aws_region":"us-east-1","model_id":"anthropic.claude-3-5-sonnet-20241022-v2:0","guardrail_mode":"user","guardrail_identifier":"gr-abc123","guardrail_applied":true,"guardrail_intervened":false,"request_id":"...","latency_ms":1234}
 ```
 
 With `--json`, the assistant prints a response object like:
@@ -192,6 +226,10 @@ With `--json`, the assistant prints a response object like:
 {
   "response_text": "...",
   "model_id": "...",
+  "guardrail_mode": "user",
+  "guardrail_identifier": "gr-abc123",
+  "guardrail_applied": true,
+  "guardrail_intervened": false,
   "stop_reason": "...",
   "input_tokens": 123,
   "output_tokens": 456,
@@ -214,6 +252,7 @@ With `--json`, the assistant prints a response object like:
 - The IAM identity can authenticate to AWS but cannot call Bedrock
 - Bedrock may return access denied or model not found errors
 - If you are using `BEDROCK_INFERENCE_PROFILE_ARN`, your AWS identity must also be allowed to invoke that exact inference profile ARN
+- If you are using Bedrock guardrails, your AWS identity must also be allowed to apply the exact guardrail ARN
 
 ### Region mismatch
 
@@ -225,6 +264,8 @@ With `--json`, the assistant prints a response object like:
 - `AWS_REGION` is required
 - `BEDROCK_MODEL_ID` or `BEDROCK_INFERENCE_PROFILE_ARN` is required
 - `BEDROCK_MODEL_ID` must be a plain model ID, not an ARN
+- If you set one of `BEDROCK_GUARDRAIL_IDENTIFIER` or `BEDROCK_GUARDRAIL_VERSION`, set both
+- `BEDROCK_GUARDRAIL_MODE` must be one of `off`, `user`, or `all`
 - Invalid `LOG_LEVEL`, `BEDROCK_MAX_TOKENS`, or `BEDROCK_TEMPERATURE` values fail fast during startup
 
 ## How The Pieces Fit Together

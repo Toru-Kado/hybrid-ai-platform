@@ -67,6 +67,12 @@ variable "bedrock_allowed_inference_profile_arns" {
   default     = []
 }
 
+variable "bedrock_allowed_guardrail_arns" {
+  description = "Optional Bedrock guardrail ARNs the runtime role may apply."
+  type        = list(string)
+  default     = []
+}
+
 variable "runtime_role_trusted_principal_arns" {
   description = "AWS principal ARNs allowed to assume the runtime role. Leave empty to trust the current AWS account."
   type        = list(string)

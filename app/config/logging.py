@@ -30,6 +30,10 @@ class JsonFormatter(logging.Formatter):
             "stop_reason",
             "input_tokens",
             "output_tokens",
+            "guardrail_mode",
+            "guardrail_identifier",
+            "guardrail_applied",
+            "guardrail_intervened",
             "error_code",
             "details",
         ):

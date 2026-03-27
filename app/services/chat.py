@@ -5,7 +5,7 @@ import time
 from dataclasses import dataclass
 
 from app.clients.bedrock import BedrockResponse, BedrockRuntimeClient
-from app.config.settings import Settings
+from app.config.settings import GuardrailSettings, Settings
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +14,10 @@ logger = logging.getLogger(__name__)
 class ChatResult:
     response_text: str
     model_id: str
+    guardrail_mode: str
+    guardrail_identifier: str | None
+    guardrail_applied: bool
+    guardrail_intervened: bool
     stop_reason: str | None
     input_tokens: int | None
     output_tokens: int | None
@@ -24,6 +28,10 @@ class ChatResult:
         return {
             "response_text": self.response_text,
             "model_id": self.model_id,
+            "guardrail_mode": self.guardrail_mode,
+            "guardrail_identifier": self.guardrail_identifier,
+            "guardrail_applied": self.guardrail_applied,
+            "guardrail_intervened": self.guardrail_intervened,
             "stop_reason": self.stop_reason,
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
@@ -44,6 +52,7 @@ class ChatService:
         system_prompt: str | None = None,
         max_tokens: int | None = None,
         temperature: float | None = None,
+        guardrail_settings: GuardrailSettings | None = None,
     ) -> ChatResult:
         effective_system_prompt = system_prompt or self._settings.assistant_system_prompt
         started_at = time.perf_counter()
@@ -52,18 +61,24 @@ class ChatService:
             system_prompt=effective_system_prompt,
             max_tokens=max_tokens,
             temperature=temperature,
+            guardrail_settings=guardrail_settings,
         )
         latency_ms = int((time.perf_counter() - started_at) * 1000)
         result = _build_chat_result(
             response=response,
             model_id=self._client.model_identifier,
             latency_ms=latency_ms,
+            guardrail_settings=guardrail_settings,
         )
 
         logger.info(
             "Bedrock prompt completed",
             extra={
                 "model_id": result.model_id,
+                "guardrail_mode": result.guardrail_mode,
+                "guardrail_identifier": result.guardrail_identifier,
+                "guardrail_applied": result.guardrail_applied,
+                "guardrail_intervened": result.guardrail_intervened,
                 "request_id": result.request_id,
                 "latency_ms": result.latency_ms,
                 "stop_reason": result.stop_reason,
@@ -81,10 +96,17 @@ def _build_chat_result(
     response: BedrockResponse,
     model_id: str,
     latency_ms: int,
+    guardrail_settings: GuardrailSettings | None,
 ) -> ChatResult:
     return ChatResult(
         response_text=response.text,
         model_id=model_id,
+        guardrail_mode=guardrail_settings.mode if guardrail_settings else "off",
+        guardrail_identifier=(
+            guardrail_settings.identifier if guardrail_settings else None
+        ),
+        guardrail_applied=guardrail_settings is not None,
+        guardrail_intervened=response.stop_reason == "guardrail_intervened",
         stop_reason=response.stop_reason,
         input_tokens=response.usage_input_tokens,
         output_tokens=response.usage_output_tokens,

@@ -28,10 +28,10 @@ module "ai_assets_bucket" {
 module "observability" {
   source = "../../modules/observability"
 
-  project_name       = var.project_name
-  environment        = var.environment
-  retention_in_days  = var.log_retention_days
-  tags               = local.common_tags
+  project_name      = var.project_name
+  environment       = var.environment
+  retention_in_days = var.log_retention_days
+  tags              = local.common_tags
 }
 
 module "bedrock_runtime_role" {
@@ -42,6 +42,7 @@ module "bedrock_runtime_role" {
   trusted_principal_arns = var.runtime_role_trusted_principal_arns
   foundation_model_ids   = var.bedrock_allowed_model_ids
   inference_profile_arns = var.bedrock_allowed_inference_profile_arns
+  guardrail_arns         = var.bedrock_allowed_guardrail_arns
   assets_bucket_arn      = module.ai_assets_bucket.bucket_arn
   log_group_arn          = module.observability.log_group_arn
   tags                   = local.common_tags

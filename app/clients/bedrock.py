@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from app.config.settings import Settings
+from app.config.settings import GuardrailSettings, Settings
 
 logger = logging.getLogger(__name__)
 
@@ -58,33 +58,31 @@ class BedrockRuntimeClient:
         system_prompt: str | None = None,
         max_tokens: int | None = None,
         temperature: float | None = None,
+        guardrail_settings: GuardrailSettings | None = None,
     ) -> BedrockResponse:
-        payload: dict[str, Any] = {
-            "modelId": self.model_identifier,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [{"text": prompt}],
-                }
-            ],
-            "inferenceConfig": {
-                "maxTokens": max_tokens or self._settings.bedrock_max_tokens,
-                "temperature": (
-                    temperature
-                    if temperature is not None
-                    else self._settings.bedrock_temperature
-                ),
-            },
-        }
-
-        if system_prompt:
-            payload["system"] = [{"text": system_prompt}]
+        payload = _build_converse_payload(
+            model_identifier=self.model_identifier,
+            prompt=prompt,
+            system_prompt=system_prompt,
+            max_tokens=max_tokens or self._settings.bedrock_max_tokens,
+            temperature=(
+                temperature
+                if temperature is not None
+                else self._settings.bedrock_temperature
+            ),
+            guardrail_settings=guardrail_settings,
+        )
 
         logger.debug(
             "Sending Bedrock Converse request",
             extra={
                 "aws_region": self._settings.aws_region,
                 "model_id": self.model_identifier,
+                "guardrail_mode": guardrail_settings.mode if guardrail_settings else "off",
+                "guardrail_identifier": (
+                    guardrail_settings.identifier if guardrail_settings else None
+                ),
+                "guardrail_applied": guardrail_settings is not None,
             },
         )
 
@@ -110,6 +108,71 @@ class BedrockRuntimeClient:
             usage_output_tokens=usage.get("outputTokens"),
             request_id=request_id,
         )
+
+
+def _build_converse_payload(
+    *,
+    model_identifier: str,
+    prompt: str,
+    system_prompt: str | None,
+    max_tokens: int,
+    temperature: float,
+    guardrail_settings: GuardrailSettings | None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "modelId": model_identifier,
+        "messages": [
+            {
+                "role": "user",
+                "content": _build_user_content(prompt, guardrail_settings),
+            }
+        ],
+        "inferenceConfig": {
+            "maxTokens": max_tokens,
+            "temperature": temperature,
+        },
+    }
+
+    if guardrail_settings:
+        payload["guardrailConfig"] = {
+            "guardrailIdentifier": guardrail_settings.identifier,
+            "guardrailVersion": guardrail_settings.version,
+        }
+        if guardrail_settings.trace:
+            payload["guardrailConfig"]["trace"] = "enabled"
+
+    if system_prompt:
+        payload["system"] = _build_system_content(system_prompt, guardrail_settings)
+
+    return payload
+
+
+def _build_user_content(
+    prompt: str,
+    guardrail_settings: GuardrailSettings | None,
+) -> list[dict[str, Any]]:
+    if not guardrail_settings:
+        return [{"text": prompt}]
+    return [_guarded_text_block(prompt)]
+
+
+def _build_system_content(
+    system_prompt: str,
+    guardrail_settings: GuardrailSettings | None,
+) -> list[dict[str, Any]]:
+    if not guardrail_settings or guardrail_settings.mode != "all":
+        return [{"text": system_prompt}]
+    return [_guarded_text_block(system_prompt)]
+
+
+def _guarded_text_block(text: str) -> dict[str, Any]:
+    return {
+        "guardContent": {
+            "text": {
+                "text": text,
+            }
+        }
+    }
 
 
 def _load_bedrock_dependencies() -> tuple[Any, Any, tuple[type[BaseException], ...]]:

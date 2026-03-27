@@ -43,6 +43,14 @@ def parse_args() -> argparse.Namespace:
         default=".env",
         help="Path to a dotenv-style file. Defaults to .env in the repository root.",
     )
+    parser.add_argument(
+        "--guardrails",
+        choices=["off", "user", "all"],
+        help=(
+            "Override Bedrock guardrail handling for this run. "
+            "off omits guardrails, user guards only the user prompt, all guards user and system prompts."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -74,6 +82,7 @@ def main() -> int:
 
     try:
         settings = Settings.from_env(args.env_file)
+        guardrail_settings = settings.resolve_guardrail_settings(args.guardrails)
     except SettingsError as exc:
         print(f"Configuration error: {exc}", file=sys.stderr)
         return 2
@@ -95,6 +104,7 @@ def main() -> int:
             system_prompt=args.system,
             max_tokens=args.max_tokens,
             temperature=args.temperature,
+            guardrail_settings=guardrail_settings,
         )
     except BedrockClientError as exc:
         logger.error(

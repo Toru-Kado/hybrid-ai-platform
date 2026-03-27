@@ -21,6 +21,9 @@ bedrock_allowed_model_ids = [
 # If the app uses BEDROCK_INFERENCE_PROFILE_ARN, allow that ARN here too.
 bedrock_allowed_inference_profile_arns = []
 
+# If the app uses a Bedrock guardrail, allow that ARN here too.
+bedrock_allowed_guardrail_arns = []
+
 # Leave empty to trust the current AWS account, or provide a tighter allow-list.
 runtime_role_trusted_principal_arns = []
 

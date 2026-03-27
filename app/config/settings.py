@@ -83,6 +83,34 @@ def _looks_like_arn(value: str | None) -> bool:
     return bool(value and value.startswith("arn:"))
 
 
+def _bool_env(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+
+    value = raw.strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    raise SettingsError(f"{name} must be a boolean (true/false)")
+
+
+def _choice_env(name: str, default: str, allowed: set[str]) -> str:
+    value = os.getenv(name, default).strip().lower()
+    if value not in allowed:
+        raise SettingsError(f"{name} must be one of: {', '.join(sorted(allowed))}")
+    return value
+
+
+@dataclass(frozen=True, slots=True)
+class GuardrailSettings:
+    identifier: str
+    version: str
+    mode: str
+    trace: bool
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     app_env: str
@@ -92,6 +120,10 @@ class Settings:
     aws_profile: str | None
     bedrock_model_id: str | None
     bedrock_inference_profile_arn: str | None
+    bedrock_guardrail_identifier: str | None
+    bedrock_guardrail_version: str | None
+    bedrock_guardrail_mode: str
+    bedrock_guardrail_trace: bool
     bedrock_max_tokens: int
     bedrock_temperature: float
     assistant_system_prompt: str | None
@@ -106,6 +138,30 @@ class Settings:
             return self.bedrock_model_id
         raise SettingsError(
             "Set BEDROCK_MODEL_ID or BEDROCK_INFERENCE_PROFILE_ARN before running the assistant."
+        )
+
+    def resolve_guardrail_settings(
+        self,
+        mode_override: str | None = None,
+    ) -> GuardrailSettings | None:
+        mode = (mode_override or self.bedrock_guardrail_mode).strip().lower()
+        allowed_modes = {"off", "user", "all"}
+        if mode not in allowed_modes:
+            raise SettingsError(
+                "Guardrail mode must be one of: all, off, user"
+            )
+        if mode == "off":
+            return None
+        if not self.bedrock_guardrail_identifier or not self.bedrock_guardrail_version:
+            raise SettingsError(
+                "Bedrock guardrails are enabled, but BEDROCK_GUARDRAIL_IDENTIFIER and "
+                "BEDROCK_GUARDRAIL_VERSION are not both set."
+            )
+        return GuardrailSettings(
+            identifier=self.bedrock_guardrail_identifier,
+            version=self.bedrock_guardrail_version,
+            mode=mode,
+            trace=self.bedrock_guardrail_trace,
         )
 
     @classmethod
@@ -129,6 +185,22 @@ class Settings:
                 "BEDROCK_MODEL_ID must be a model ID, not an ARN. "
                 "Use BEDROCK_INFERENCE_PROFILE_ARN for inference profile ARNs."
             )
+        bedrock_guardrail_identifier = _optional_env("BEDROCK_GUARDRAIL_IDENTIFIER")
+        bedrock_guardrail_version = _optional_env("BEDROCK_GUARDRAIL_VERSION")
+        if bool(bedrock_guardrail_identifier) != bool(bedrock_guardrail_version):
+            raise SettingsError(
+                "Set both BEDROCK_GUARDRAIL_IDENTIFIER and BEDROCK_GUARDRAIL_VERSION, or neither."
+            )
+        bedrock_guardrail_mode = _choice_env(
+            "BEDROCK_GUARDRAIL_MODE",
+            "user" if bedrock_guardrail_identifier else "off",
+            {"off", "user", "all"},
+        )
+        if bedrock_guardrail_mode != "off" and not bedrock_guardrail_identifier:
+            raise SettingsError(
+                "BEDROCK_GUARDRAIL_MODE requires BEDROCK_GUARDRAIL_IDENTIFIER and BEDROCK_GUARDRAIL_VERSION."
+            )
+        bedrock_guardrail_trace = _bool_env("BEDROCK_GUARDRAIL_TRACE", False)
         if not bedrock_model_id and not bedrock_inference_profile_arn:
             raise SettingsError(
                 "Set BEDROCK_MODEL_ID or BEDROCK_INFERENCE_PROFILE_ARN before running the assistant."
@@ -142,6 +214,10 @@ class Settings:
             aws_profile=_optional_env("AWS_PROFILE"),
             bedrock_model_id=bedrock_model_id,
             bedrock_inference_profile_arn=bedrock_inference_profile_arn,
+            bedrock_guardrail_identifier=bedrock_guardrail_identifier,
+            bedrock_guardrail_version=bedrock_guardrail_version,
+            bedrock_guardrail_mode=bedrock_guardrail_mode,
+            bedrock_guardrail_trace=bedrock_guardrail_trace,
             bedrock_max_tokens=bedrock_max_tokens,
             bedrock_temperature=bedrock_temperature,
             assistant_system_prompt=_optional_env("ASSISTANT_SYSTEM_PROMPT"),
