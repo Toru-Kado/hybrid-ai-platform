@@ -1,0 +1,25 @@
+aws_region = "us-east-1"
+aws_profile = "hybrid-ai-dev"
+
+project_name = "hybrid-ai-platform"
+environment  = "dev"
+
+# Set to true in disposable sandboxes. Keep false if you want extra protection during destroy.
+force_destroy_assets_bucket = true
+
+log_retention_days = 14
+
+# Replace with the model IDs enabled in your account and region.
+bedrock_foundation_model_ids = [
+  "anthropic.claude-3-5-sonnet-20241022-v2:0"
+]
+
+# Leave empty unless you plan to invoke Bedrock through inference profiles.
+bedrock_inference_profile_arns = []
+
+# Leave empty to trust the current AWS account, or set a tighter list of principal ARNs.
+trusted_principal_arns = []
+
+tags = {
+  Owner = "solo-developer"
+}
