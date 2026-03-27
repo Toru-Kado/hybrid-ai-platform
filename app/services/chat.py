@@ -4,7 +4,7 @@ import logging
 import time
 from dataclasses import dataclass
 
-from app.clients.bedrock import BedrockRuntimeClient
+from app.clients.bedrock import BedrockResponse, BedrockRuntimeClient
 from app.config.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -54,17 +54,9 @@ class ChatService:
             temperature=temperature,
         )
         latency_ms = int((time.perf_counter() - started_at) * 1000)
-        request_id = (
-            response.raw_response.get("ResponseMetadata", {}).get("RequestId")
-        )
-
-        result = ChatResult(
-            response_text=response.text,
+        result = _build_chat_result(
+            response=response,
             model_id=self._client.model_identifier,
-            stop_reason=response.stop_reason,
-            input_tokens=response.usage_input_tokens,
-            output_tokens=response.usage_output_tokens,
-            request_id=request_id,
             latency_ms=latency_ms,
         )
 
@@ -77,7 +69,25 @@ class ChatService:
                 "stop_reason": result.stop_reason,
                 "input_tokens": result.input_tokens,
                 "output_tokens": result.output_tokens,
+                "aws_region": self._settings.aws_region,
             },
         )
 
         return result
+
+
+def _build_chat_result(
+    *,
+    response: BedrockResponse,
+    model_id: str,
+    latency_ms: int,
+) -> ChatResult:
+    return ChatResult(
+        response_text=response.text,
+        model_id=model_id,
+        stop_reason=response.stop_reason,
+        input_tokens=response.usage_input_tokens,
+        output_tokens=response.usage_output_tokens,
+        request_id=response.request_id,
+        latency_ms=latency_ms,
+    )

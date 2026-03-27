@@ -3,7 +3,7 @@ VENV ?= .venv
 PIP := $(VENV)/bin/pip
 PYTHON_BIN := $(VENV)/bin/python
 
-.PHONY: bootstrap install run example compile terraform-init terraform-plan terraform-apply terraform-fmt tree
+.PHONY: bootstrap install run example compile verify terraform-init terraform-plan terraform-apply terraform-fmt tree
 
 bootstrap:
 	$(PYTHON) -m venv $(VENV)
@@ -21,6 +21,8 @@ example:
 
 compile:
 	$(PYTHON_BIN) -m compileall app
+
+verify: compile
 
 terraform-init:
 	terraform -chdir=infra/environments/dev init

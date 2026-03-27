@@ -9,7 +9,7 @@ description = "Starter hybrid AI platform using Python, Terraform, AWS Bedrock, 
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-  "boto3>=1.34.0,<2.0.0",
+  "boto3>=1.34.122,<2.0.0",
 ]
 
 [project.scripts]

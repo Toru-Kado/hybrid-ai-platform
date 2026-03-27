@@ -23,12 +23,15 @@ class JsonFormatter(logging.Formatter):
         }
 
         for field in (
+            "aws_region",
             "model_id",
             "request_id",
             "latency_ms",
             "stop_reason",
             "input_tokens",
             "output_tokens",
+            "error_code",
+            "details",
         ):
             if hasattr(record, field):
                 payload[field] = getattr(record, field)
@@ -44,7 +47,7 @@ def configure_logging(*, level: str, service_name: str, environment: str) -> Non
     root_logger.handlers.clear()
     root_logger.setLevel(level.upper())
 
-    handler = logging.StreamHandler(sys.stdout)
+    handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(
         JsonFormatter(service_name=service_name, environment=environment)
     )

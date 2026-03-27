@@ -48,7 +48,9 @@ def parse_args() -> argparse.Namespace:
 
 def resolve_prompt(args: argparse.Namespace) -> str:
     if args.prompt:
-        return args.prompt.strip()
+        prompt = args.prompt.strip()
+        if prompt:
+            return prompt
 
     if not sys.stdin.isatty():
         piped_prompt = sys.stdin.read().strip()
@@ -58,8 +60,17 @@ def resolve_prompt(args: argparse.Namespace) -> str:
     raise SystemExit("Provide --prompt or pipe prompt text on stdin.")
 
 
+def validate_args(args: argparse.Namespace) -> None:
+    if args.max_tokens is not None and args.max_tokens <= 0:
+        raise SystemExit("--max-tokens must be greater than zero.")
+
+    if args.temperature is not None and not 0 <= args.temperature <= 1:
+        raise SystemExit("--temperature must be between 0 and 1.")
+
+
 def main() -> int:
     args = parse_args()
+    validate_args(args)
 
     try:
         settings = Settings.from_env(args.env_file)
@@ -85,11 +96,20 @@ def main() -> int:
             max_tokens=args.max_tokens,
             temperature=args.temperature,
         )
-    except BedrockClientError:
-        logger.exception("Bedrock invocation failed")
+    except BedrockClientError as exc:
+        logger.error(
+            "Bedrock invocation failed",
+            extra={
+                "aws_region": settings.aws_region,
+                "error_code": exc.error_code,
+                "details": str(exc),
+            },
+        )
+        print(f"Bedrock error: {exc}", file=sys.stderr)
         return 1
     except Exception:
         logger.exception("Unexpected assistant failure")
+        print("Unexpected application error. Check logs for details.", file=sys.stderr)
         return 1
 
     if args.json:
