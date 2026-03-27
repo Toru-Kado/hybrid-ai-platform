@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "aws": {
+      "command": "aws",
+      "args": ["--version"],
+      "description": "AWS CLI integration for Bedrock, S3, CloudWatch, and IAM operations"
+    },
+    "python": {
+      "command": "python3.12",
+      "args": ["-m", "debugpy.adapter"],
+      "description": "Python debugging, REPL, and code analysis for the app module"
+    }
+  }
+}
