@@ -37,6 +37,26 @@ aws sts get-caller-identity --profile hybrid-ai-dev
 
 Use a region where Bedrock and your Claude model are enabled.
 
+If you want a thinner IAM user, create a separate operator role in Terraform and let
+your local user assume it. The runtime role in this repo stays separate.
+
+With the optional operator role enabled, a common profile split looks like:
+
+```ini
+[profile hybrid-ai-bootstrap]
+region = us-east-1
+
+[profile hybrid-ai-dev]
+region = us-east-1
+source_profile = hybrid-ai-bootstrap
+role_arn = arn:aws:iam::929924811789:role/HybridAIDevOperatorRole
+```
+
+In that setup:
+
+- `hybrid-ai-bootstrap` is the thin IAM user profile
+- `hybrid-ai-dev` is the assumed role profile you use in `.env` and Terraform
+
 ### 2. Create local app configuration
 
 ```bash
@@ -89,6 +109,7 @@ Review these values before apply:
 - `bedrock_allowed_inference_profile_arns`
 - `bedrock_allowed_guardrail_arns`
 - `runtime_role_trusted_principal_arns`
+- `operator_user_name`
 - `ai_assets_bucket_force_destroy`
 
 Then run Terraform:
@@ -104,9 +125,15 @@ Terraform creates:
 - An encrypted S3 bucket for prompts, datasets, and generated artifacts
 - A CloudWatch log group for assistant-related workloads
 - An IAM role for future Bedrock-powered AWS runtimes
+- Optional: a separate IAM operator role for local development, plus a small inline
+  policy on an existing IAM user that allows `sts:AssumeRole`
 
 If you plan to use Bedrock guardrails, add the target guardrail ARN to
 `bedrock_allowed_guardrail_arns`.
+
+If you set `operator_user_name`, Terraform does not create that IAM user for you.
+It assumes the user already exists, then grants that user permission to assume the
+new operator role. This keeps local operator access separate from the runtime role.
 
 ### 5. Copy useful Terraform outputs into `.env`
 
@@ -123,6 +150,9 @@ Copy these values into `.env` if you want local references to the provisioned re
 - `aws_region` -> `AWS_REGION`
 
 The local CLI uses your active AWS credentials directly. It does not automatically assume the Terraform-created IAM role.
+
+If your AWS profile already assumes the Terraform-created operator role, the CLI will
+use that role automatically through the standard AWS SDK profile chain.
 
 ## First Run
 
