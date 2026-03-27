@@ -1,5 +1,5 @@
 output "ai_assets_bucket_name" {
-  description = "S3 bucket for prompts, datasets, exports, and other AI assets."
+  description = "S3 bucket name for prompts, datasets, exports, and other AI assets."
   value       = module.ai_assets_bucket.bucket_name
 }
 
@@ -8,12 +8,12 @@ output "assistant_log_group_name" {
   value       = module.observability.log_group_name
 }
 
-output "bedrock_runtime_role_arn" {
+output "assistant_runtime_role_arn" {
   description = "IAM role ARN for Bedrock-powered assistant workloads."
   value       = module.bedrock_runtime_role.role_arn
 }
 
-output "bedrock_runtime_role_name" {
-  description = "IAM role name for Bedrock-powered assistant workloads."
-  value       = module.bedrock_runtime_role.role_name
+output "aws_region" {
+  description = "AWS region used by the dev environment."
+  value       = var.aws_region
 }

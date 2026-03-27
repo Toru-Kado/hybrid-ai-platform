@@ -1,15 +1,15 @@
 variable "project_name" {
-  description = "Project name used for resource naming."
+  description = "Project name used in the CloudWatch log group path."
   type        = string
 }
 
 variable "environment" {
-  description = "Deployment environment name."
+  description = "Deployment environment used in the CloudWatch log group path."
   type        = string
 }
 
 variable "retention_in_days" {
-  description = "CloudWatch log retention period."
+  description = "CloudWatch Logs retention period in days."
   type        = number
   default     = 14
 }

@@ -2,8 +2,42 @@ data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
 locals {
-  sanitized_project_name = replace(lower(var.project_name), "_", "-")
-  role_name              = coalesce(var.role_name_override, "${local.sanitized_project_name}-${var.environment}-bedrock-runtime")
+  sanitized_project_name = trim(
+    replace(
+      replace(
+        replace(
+          replace(lower(var.project_name), "_", "-"),
+          " ",
+          "-"
+        ),
+        ".",
+        "-"
+      ),
+      "/",
+      "-"
+    ),
+    "-"
+  )
+  sanitized_environment = trim(
+    replace(
+      replace(
+        replace(
+          replace(lower(var.environment), "_", "-"),
+          " ",
+          "-"
+        ),
+        ".",
+        "-"
+      ),
+      "/",
+      "-"
+    ),
+    "-"
+  )
+  role_name = coalesce(
+    var.role_name_override,
+    substr("${local.sanitized_project_name}-${local.sanitized_environment}-bedrock-runtime", 0, 64)
+  )
   trusted_principal_arns = length(var.trusted_principal_arns) > 0 ? var.trusted_principal_arns : [
     "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
   ]
@@ -44,23 +78,11 @@ resource "aws_iam_role" "this" {
 
 data "aws_iam_policy_document" "runtime_access" {
   statement {
-    sid    = "BedrockModelMetadata"
-    effect = "Allow"
-    actions = [
-      "bedrock:GetFoundationModel",
-      "bedrock:ListFoundationModels"
-    ]
-    resources = ["*"]
-  }
-
-  statement {
     sid    = "BedrockInvoke"
     effect = "Allow"
     actions = [
       "bedrock:InvokeModel",
-      "bedrock:InvokeModelWithResponseStream",
-      "bedrock:Converse",
-      "bedrock:ConverseStream"
+      "bedrock:InvokeModelWithResponseStream"
     ]
     resources = local.invoke_resources
   }
@@ -85,15 +107,6 @@ data "aws_iam_policy_document" "runtime_access" {
       "s3:AbortMultipartUpload"
     ]
     resources = ["${var.assets_bucket_arn}/*"]
-  }
-
-  statement {
-    sid    = "CreateLogGroup"
-    effect = "Allow"
-    actions = [
-      "logs:CreateLogGroup"
-    ]
-    resources = ["*"]
   }
 
   statement {

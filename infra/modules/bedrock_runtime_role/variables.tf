@@ -9,19 +9,19 @@ variable "environment" {
 }
 
 variable "role_name_override" {
-  description = "Optional explicit IAM role name."
+  description = "Optional explicit IAM role name. Leave unset to use the generated default."
   type        = string
   default     = null
 }
 
 variable "trusted_principal_arns" {
-  description = "Principals that can assume the runtime role. Defaults to the current AWS account root."
+  description = "AWS principal ARNs allowed to assume the runtime role. Leave empty to trust the current AWS account."
   type        = list(string)
   default     = []
 }
 
 variable "foundation_model_ids" {
-  description = "Bedrock foundation model IDs this role can invoke."
+  description = "Bedrock foundation model IDs this role can invoke through Bedrock runtime APIs."
   type        = list(string)
   default     = []
 }
@@ -33,7 +33,7 @@ variable "inference_profile_arns" {
 }
 
 variable "assets_bucket_arn" {
-  description = "ARN of the S3 bucket used for AI assets."
+  description = "ARN of the S3 bucket used for prompt and artifact storage."
   type        = string
 }
 

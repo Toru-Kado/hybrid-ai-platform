@@ -2,10 +2,43 @@ data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
 locals {
-  sanitized_project_name = replace(lower(var.project_name), "_", "-")
+  sanitized_project_name = trim(
+    replace(
+      replace(
+        replace(
+          replace(lower(var.project_name), "_", "-"),
+          " ",
+          "-"
+        ),
+        ".",
+        "-"
+      ),
+      "/",
+      "-"
+    ),
+    "-"
+  )
+  sanitized_environment = trim(
+    replace(
+      replace(
+        replace(
+          replace(lower(var.environment), "_", "-"),
+          " ",
+          "-"
+        ),
+        ".",
+        "-"
+      ),
+      "/",
+      "-"
+    ),
+    "-"
+  )
+  bucket_prefix = substr(local.sanitized_project_name, 0, 18)
+  environment_prefix = substr(local.sanitized_environment, 0, 8)
   bucket_name = coalesce(
     var.bucket_name_override,
-    "${local.sanitized_project_name}-${var.environment}-ai-assets-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
+    "${local.bucket_prefix}-${local.environment_prefix}-ai-${data.aws_caller_identity.current.account_id}-${data.aws_region.current.name}"
   )
 }
 
