@@ -61,19 +61,19 @@ Provide a lightweight hybrid AI development environment where:
 
 ## Core Components
 
-## 1. Local Workstation
+### 1. Local Workstation
 
 - Runs Terraform and the Python CLI assistant
 - Holds source code, `.env`, and local AWS profiles
 - Can run Kilo Code against the same AWS account and Bedrock region
 
-## 2. Amazon Bedrock
+### 2. Amazon Bedrock
 
 - Primary inference runtime
 - Keeps local compute requirements low
 - Allows model swaps by configuration rather than app rewrites
 
-## 3. S3 AI Assets Bucket
+### 3. S3 AI Assets Bucket
 
 Current use cases:
 
@@ -88,16 +88,17 @@ Future use cases:
 - RAG document staging
 - Fine-grained environment partitioning
 
-## 4. CloudWatch Log Group
+### 4. CloudWatch Log Group
 
 - Holds assistant runtime logs once you add hosted components
 - Gives a named destination up front so later Lambda, ECS, or batch work lands consistently
 
-## 5. IAM Runtime Role
+### 5. IAM Runtime Role
 
 - Central permission boundary for Bedrock access
 - Also grants limited access to the project S3 bucket and log group
-- Can be assumed directly by future AWS runtimes or by local dev identities if desired
+- Intended for future AWS-hosted workloads first
+- Can be assumed by local developers later if you choose to wire that into your AWS CLI config
 
 ## Repository Mapping
 
@@ -109,7 +110,7 @@ Future use cases:
 
 1. Terraform provisions S3, CloudWatch, and IAM.
 2. The developer configures `.env` and an AWS profile.
-3. The Python CLI loads config from `.env` plus ambient AWS credentials.
+3. The Python CLI loads config from `.env` plus local AWS credentials.
 4. The assistant sends prompts to Claude through Bedrock's Converse API.
 5. Outputs can later be saved to S3 or emitted to hosted runtimes without changing the core architecture.
 

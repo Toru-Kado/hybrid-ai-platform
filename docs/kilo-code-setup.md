@@ -1,85 +1,79 @@
 # Kilo Code Setup
 
-## Objective
+## Scope
 
-Configure Kilo Code to use AWS Bedrock as its AI backend so the same cloud runtime is shared across:
+This document keeps two things separate:
 
-- Local assistant CLI usage
-- Kilo Code-assisted development
-- Future hosted assistant components
+- AWS setup that must already exist
+- Assumptions you may need to map onto Kilo Code's current UI
 
-## Recommended Setup Pattern
+The repository does not manage Kilo Code settings files. Treat this as operator guidance, not a generated editor config.
 
-Use one AWS profile and one primary Bedrock region for all local tools:
+## Required AWS Setup
 
-- `AWS_PROFILE=hybrid-ai-dev`
-- `AWS_REGION=us-east-1`
-- `BEDROCK_MODEL_ID=<approved Claude model ID>`
+Before configuring Kilo Code, you need:
 
-That keeps Kilo Code and the Python app aligned.
+1. AWS CLI credentials that work locally
+2. A Bedrock-enabled region
+3. Access to a Claude model in that region
 
-## Local Credential Preparation
-
-1. Install AWS CLI v2.
-2. Configure a local profile.
-3. Confirm STS works for the selected profile.
+Minimum checks:
 
 ```bash
 aws configure --profile hybrid-ai-dev
 aws sts get-caller-identity --profile hybrid-ai-dev
 ```
 
-If you intend to assume the Terraform-created runtime role, wire that into your AWS CLI config rather than hard-coding temporary credentials in tool settings.
+Use the same values you place in `.env` for the Python app:
 
-## Kilo Code Configuration Guidance
+- `AWS_PROFILE`
+- `AWS_REGION`
+- `BEDROCK_MODEL_ID` or the equivalent model selector in the editor
 
-Exact labels in Kilo Code can change by version, so keep the configuration aligned to these concepts:
+## Editor Configuration Assumptions
 
-- Provider: `AWS Bedrock`
-- Authentication source: local AWS credentials or named profile
-- Region: the Bedrock-enabled AWS region you chose in Terraform and `.env`
-- Model: a Claude model enabled in your account
+Kilo Code versions may label settings differently. Do not assume exact field names from this document.
 
-Recommended order:
+Map the editor configuration to these concepts:
 
-1. Set the AWS profile in your shell environment before launching Kilo Code.
-2. Point Kilo Code at the same region used by the Python app.
-3. Select the same Claude model family used for assistant experiments.
+- AI provider: Amazon Bedrock
+- Authentication source: your local AWS credentials or named AWS profile
+- Region: the same region used in `.env`
+- Model: a Claude model enabled in your account and region
 
-## Practical Workflow
-
-- Use the Python CLI for quick smoke tests against Bedrock.
-- Use Kilo Code for coding assistance backed by the same AWS identity.
-- Keep Bedrock model changes centralized in your `.env` and local tool config.
-
-## Suggested Local Launch Pattern
+If Kilo Code inherits shell environment variables, exporting them before launch is the simplest setup:
 
 ```bash
 export AWS_PROFILE=hybrid-ai-dev
 export AWS_REGION=us-east-1
-open /Applications/Kilo\ Code.app
 ```
 
-If Kilo Code reads environment variables on launch, this is usually the cleanest approach.
+If Kilo Code does not inherit environment variables, configure the same values directly in the editor's AWS or Bedrock settings if those options exist.
+
+## Practical Recommendation
+
+Keep Kilo Code aligned with the CLI:
+
+- Same AWS profile
+- Same AWS region
+- Same Claude model family when possible
+
+That avoids debugging one tool with a different Bedrock configuration than the other.
 
 ## Common Failure Modes
 
-## Access denied
+### Access denied
 
 - Bedrock access is not enabled for the account, region, or model
-- The AWS profile lacks `bedrock:InvokeModel` or `bedrock:Converse`
-- The runtime role trust relationship is too narrow for the local identity
+- The local AWS identity does not have Bedrock invoke permissions
+- The editor is using different credentials than your shell
 
-## Wrong region
+### Wrong region
 
-- The CLI and Kilo Code point at different regions
-- The chosen Claude model is not enabled in the configured region
+- The editor points at a different region than `.env`
+- The Claude model is enabled in a different region than the one configured locally
 
-## Drift between tools
+### Drift between tools
 
-- Kilo Code uses one model while `.env` references another
-- One tool uses direct credentials while another uses an assumed role
-
-## Recommendation
-
-Treat Kilo Code as another Bedrock client in the same platform, not as a separate setup. Reuse the same profile, region, and model decisions where possible.
+- Kilo Code uses one model while the Python app uses another
+- The CLI uses `AWS_PROFILE` while the editor uses a different credential source

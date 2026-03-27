@@ -38,17 +38,17 @@ Why:
 
 ## Permission Notes
 
-For a useful starter role, the runtime needs:
+For the local CLI, your active AWS identity needs:
 
 - `bedrock:InvokeModel`
 - `bedrock:InvokeModelWithResponseStream`
-- `bedrock:Converse`
-- `bedrock:ConverseStream`
 
-This repository also adds:
+The Terraform-created IAM role is intended for future AWS-hosted workloads. It also includes:
 
 - S3 access for future prompt and artifact storage
 - CloudWatch Logs write access for future hosted execution paths
+
+The local CLI does not automatically assume that role.
 
 ## Latency and Cost Notes
 
@@ -59,6 +59,6 @@ This repository also adds:
 ## Good First Enhancements
 
 - Persist prompts and outputs to S3
-- Add retry logic and error classification for throttling or transient failures
+- Add streaming responses
 - Add conversation history support
 - Introduce Bedrock Guardrails when the assistant starts handling sensitive workflows

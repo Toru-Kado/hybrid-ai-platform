@@ -1,91 +1,96 @@
 # Hybrid AI Platform
 
-Production-minded starter repository for a hybrid AI development environment built around:
+Starter repository for a hybrid AI development setup with:
 
-- An Intel Core i9 MacBook Pro for local development and orchestration
-- AWS as the cloud platform
-- Anthropic Claude through Amazon Bedrock as the primary AI runtime
-- Terraform for infrastructure management
-- Python 3.12 for assistant workflows and backend automation
-- Kilo Code configured to use AWS Bedrock
+- Intel Core i9 MacBook Pro for local development
+- AWS for infrastructure
+- Anthropic Claude on Amazon Bedrock as the primary model runtime
+- Terraform for cloud resources
+- Python 3.12 for a small assistant CLI
 
-The design is intentionally simple: local development stays lightweight, while model execution and shared assets live in AWS.
+This repo is intentionally small. The laptop is for development and orchestration. Bedrock is the runtime.
 
-## Repository Layout
+## What This Repo Creates
 
-```text
-.
-├── app/                     # Python assistant application
-├── docs/                    # Architecture, setup, and decision records
-├── infra/                   # Terraform modules and dev environment
-├── .env.example             # Environment variables for local development
-├── .gitignore
-├── Makefile
-├── pyproject.toml           # Python packaging and CLI entrypoint
-└── README.md
-```
-
-## Architecture Summary
-
-- The MacBook Pro is used for coding, Terraform execution, CLI usage, and light orchestration.
-- Amazon Bedrock handles Claude inference so the local machine does not carry model runtime costs.
-- S3 stores prompts, exports, evaluation data, or other AI assets.
-- CloudWatch Log Groups provide a destination for runtime logs when you later wire in hosted components.
-- A dedicated IAM role scopes Bedrock, S3, and CloudWatch permissions for the assistant runtime.
-
-See [architecture.md](/Users/nathanmalitz/Code/hybrid-ai-platform/docs/architecture.md) for the full breakdown.
+- [app](/Users/nathanmalitz/Code/hybrid-ai-platform/app): Python CLI that sends prompts to Bedrock Claude
+- [infra](/Users/nathanmalitz/Code/hybrid-ai-platform/infra): Terraform for an S3 bucket, CloudWatch log group, and IAM runtime role
+- [docs](/Users/nathanmalitz/Code/hybrid-ai-platform/docs): architecture notes and setup guidance
 
 ## Prerequisites
 
 - Python `3.12`
 - Terraform `>= 1.7`
 - AWS CLI v2
-- Access to Amazon Bedrock in your selected AWS region
-- Permission to create IAM, S3, and CloudWatch resources in your AWS account
+- An AWS account with Bedrock access in your chosen region
+- Access to at least one Claude model in that region
 
-## Local Setup
+## Step-By-Step Setup
 
-1. Copy `.env.example` to `.env`.
-2. Create and activate a virtual environment.
-3. Install the package in editable mode.
+### 1. Configure local AWS access
 
-```bash
-cp .env.example .env
-python3.12 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -e .
-```
-
-If you prefer `make`:
-
-```bash
-make bootstrap
-```
-
-## Configure AWS
-
-Use an AWS profile with Bedrock access in the region where your chosen Claude model is enabled.
-
-Example:
+Create a profile and verify it:
 
 ```bash
 aws configure --profile hybrid-ai-dev
 aws sts get-caller-identity --profile hybrid-ai-dev
 ```
 
-Set `AWS_PROFILE` and `AWS_REGION` in `.env` to match that profile.
+Use a region where Bedrock and your Claude model are enabled.
 
-## Terraform Workflow
+### 2. Create local app configuration
 
-The `dev` environment is under [infra/environments/dev](/Users/nathanmalitz/Code/hybrid-ai-platform/infra/environments/dev).
+```bash
+cp .env.example .env
+```
 
-1. Copy the example variables file.
-2. Review the Bedrock model IDs and trusted principals.
-3. Initialize and apply Terraform.
+Edit `.env` and set at least:
+
+- `AWS_REGION`
+- `AWS_PROFILE`
+- `BEDROCK_MODEL_ID` or `BEDROCK_INFERENCE_PROFILE_ARN`
+
+Example:
+
+```dotenv
+AWS_REGION=us-east-1
+AWS_PROFILE=hybrid-ai-dev
+BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
+```
+
+### 3. Install the Python app
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -e .
+```
+
+Equivalent shortcut:
+
+```bash
+make bootstrap
+```
+
+### 4. Create the AWS baseline with Terraform
+
+Copy the example tfvars file:
 
 ```bash
 cp infra/environments/dev/terraform.tfvars.example infra/environments/dev/terraform.tfvars
+```
+
+Review these values before apply:
+
+- `aws_region`
+- `aws_profile`
+- `bedrock_allowed_model_ids`
+- `runtime_role_trusted_principal_arns`
+- `ai_assets_bucket_force_destroy`
+
+Then run Terraform:
+
+```bash
 make terraform-init
 make terraform-plan
 make terraform-apply
@@ -93,51 +98,147 @@ make terraform-apply
 
 Terraform creates:
 
-- An encrypted S3 bucket for AI assets
-- A CloudWatch log group for assistant logs
-- An IAM role for Bedrock, S3, and logging access
+- An encrypted S3 bucket for prompts, datasets, and generated artifacts
+- A CloudWatch log group for assistant-related workloads
+- An IAM role for future Bedrock-powered AWS runtimes
 
-After `apply`, capture the outputs and copy the bucket and log group values into `.env`.
+### 5. Copy useful Terraform outputs into `.env`
 
-## Run The Python Assistant
+Get outputs:
+
+```bash
+terraform -chdir=infra/environments/dev output
+```
+
+Copy these values into `.env` if you want local references to the provisioned resources:
+
+- `ai_assets_bucket_name` -> `AI_ASSETS_BUCKET_NAME`
+- `assistant_log_group_name` -> `ASSISTANT_LOG_GROUP_NAME`
+- `aws_region` -> `AWS_REGION`
+
+The local CLI uses your active AWS credentials directly. It does not automatically assume the Terraform-created IAM role.
+
+## First Run
+
+Check the CLI wiring first:
+
+```bash
+python -m app --help
+```
+
+Then send a prompt:
+
+```bash
+python -m app --prompt "Summarize why this repo uses Bedrock instead of local model inference."
+```
+
+Or, after install:
+
+```bash
+hybrid-assistant --prompt "List two extension ideas for this starter."
+```
+
+## Example Commands
 
 Basic prompt:
 
 ```bash
-python -m app --prompt "Summarize the tradeoffs of using Bedrock from a local Intel Mac."
+python -m app --prompt "Explain the purpose of the S3 bucket in this repo."
 ```
 
-Prompt with a custom system instruction:
+Custom system prompt:
 
 ```bash
 python -m app \
-  --system "You are a cloud architecture assistant." \
-  --prompt "Propose a lightweight AI platform roadmap for a solo developer."
+  --system "You are a senior cloud architect." \
+  --prompt "Propose the next two improvements for this platform."
 ```
 
-Structured JSON output:
+JSON output:
 
 ```bash
-python -m app --prompt "List three AWS Bedrock guardrail ideas." --json
+python -m app --prompt "List three common Bedrock setup mistakes." --json
 ```
 
-## How It Fits Together
+Prompt from stdin:
 
-- `infra/` provisions the AWS primitives the platform needs first.
-- `app/` reads environment configuration and uses `boto3` to call Bedrock's Converse API.
-- `docs/` captures the operating model, constraints, and future evolution points.
-- Kilo Code can reuse the same AWS profile and region choices documented in [kilo-code-setup.md](/Users/nathanmalitz/Code/hybrid-ai-platform/docs/kilo-code-setup.md).
+```bash
+echo "Describe the role of CloudWatch in this repo." | python -m app
+```
 
-## Extension Points
+## Expected Output
 
-- Add prompt persistence and artifact upload flows to S3
-- Introduce evaluation jobs or async processing with Lambda or ECS
-- Add Bedrock Guardrails and tracing
-- Promote Terraform state to a remote backend for team usage
-- Add CI checks for Terraform validation and Python linting
+Normal mode:
 
-## Manual Follow-Up
+- Assistant text is printed to `stdout`
+- Structured logs are printed to `stderr`
 
-- Enable the desired Claude model in Amazon Bedrock for your AWS account and region
-- Review the IAM role trust policy inputs before using it beyond local development
-- Decide whether local AWS profiles will call Bedrock directly or assume the created runtime role
+Example shape:
+
+```text
+This repository keeps local development lightweight and pushes model inference to Amazon Bedrock.
+```
+
+JSON log example:
+
+```json
+{"timestamp":"2026-03-27T00:00:00+00:00","level":"INFO","logger":"app.services.chat","message":"Bedrock prompt completed","service":"hybrid-ai-assistant","environment":"dev","aws_region":"us-east-1","model_id":"anthropic.claude-3-5-sonnet-20241022-v2:0","request_id":"...","latency_ms":1234}
+```
+
+With `--json`, the assistant prints a response object like:
+
+```json
+{
+  "response_text": "...",
+  "model_id": "...",
+  "stop_reason": "...",
+  "input_tokens": 123,
+  "output_tokens": 456,
+  "request_id": "...",
+  "latency_ms": 1234
+}
+```
+
+## Common Failure Points
+
+### AWS credential issues
+
+- `AWS_PROFILE` points to a profile that does not exist
+- AWS CLI credentials are expired or missing
+- You can diagnose this with `aws sts get-caller-identity --profile <profile>`
+
+### Bedrock access not enabled
+
+- The account has not been granted access to the Claude model you selected
+- The IAM identity can authenticate to AWS but cannot call Bedrock
+- Bedrock may return access denied or model not found errors
+
+### Region mismatch
+
+- `.env` points at one region while Terraform or your AWS profile uses another
+- The selected model exists in a different region than `AWS_REGION`
+
+### Missing environment variables
+
+- `AWS_REGION` is required
+- `BEDROCK_MODEL_ID` or `BEDROCK_INFERENCE_PROFILE_ARN` is required
+- Invalid `LOG_LEVEL`, `BEDROCK_MAX_TOKENS`, or `BEDROCK_TEMPERATURE` values fail fast during startup
+
+## How The Pieces Fit Together
+
+- `infra/` creates the AWS baseline resources
+- `app/` reads `.env`, uses your AWS credentials, and calls Bedrock through `boto3`
+- `docs/` explains the operating model and local tool assumptions
+
+Useful references:
+
+- [architecture.md](/Users/nathanmalitz/Code/hybrid-ai-platform/docs/architecture.md)
+- [bedrock-claude-notes.md](/Users/nathanmalitz/Code/hybrid-ai-platform/docs/bedrock-claude-notes.md)
+- [kilo-code-setup.md](/Users/nathanmalitz/Code/hybrid-ai-platform/docs/kilo-code-setup.md)
+
+## Future Extensions
+
+- Persist prompts and results to S3
+- Add streaming responses
+- Add a small API layer on top of `app/services`
+- Add CI checks for Python and Terraform
