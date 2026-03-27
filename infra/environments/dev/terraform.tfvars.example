@@ -27,6 +27,15 @@ bedrock_allowed_guardrail_arns = []
 # Leave empty to trust the current AWS account, or provide a tighter allow-list.
 runtime_role_trusted_principal_arns = []
 
+# Optional: let an existing IAM user assume a separate local operator role.
+operator_user_name = "hybrid-ai-dev"
+
+# Optional explicit name for the local operator role.
+operator_role_name_override = null
+
+# Set to false if you do not want quota and metric read access on the operator role.
+operator_role_enable_observability_access = true
+
 tags = {
   Owner = "solo-developer"
 }

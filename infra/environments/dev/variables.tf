@@ -79,6 +79,24 @@ variable "runtime_role_trusted_principal_arns" {
   default     = []
 }
 
+variable "operator_user_name" {
+  description = "Optional existing IAM user name that should assume a separate local operator role."
+  type        = string
+  default     = null
+}
+
+variable "operator_role_name_override" {
+  description = "Optional explicit IAM role name for the local operator role."
+  type        = string
+  default     = null
+}
+
+variable "operator_role_enable_observability_access" {
+  description = "Grant Bedrock quota and CloudWatch read access to the local operator role."
+  type        = bool
+  default     = true
+}
+
 variable "tags" {
   description = "Additional tags applied to all resources."
   type        = map(string)

@@ -47,3 +47,21 @@ module "bedrock_runtime_role" {
   log_group_arn          = module.observability.log_group_arn
   tags                   = local.common_tags
 }
+
+module "dev_operator_role" {
+  count = var.operator_user_name != null ? 1 : 0
+
+  source = "../../modules/dev_operator_role"
+
+  project_name                = var.project_name
+  environment                 = var.environment
+  operator_user_name          = var.operator_user_name
+  role_name_override          = var.operator_role_name_override
+  foundation_model_ids        = var.bedrock_allowed_model_ids
+  inference_profile_arns      = var.bedrock_allowed_inference_profile_arns
+  guardrail_arns              = var.bedrock_allowed_guardrail_arns
+  assets_bucket_arn           = module.ai_assets_bucket.bucket_arn
+  log_group_arn               = module.observability.log_group_arn
+  enable_observability_access = var.operator_role_enable_observability_access
+  tags                        = local.common_tags
+}
