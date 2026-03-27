@@ -41,12 +41,14 @@ locals {
   trusted_principal_arns = length(var.trusted_principal_arns) > 0 ? var.trusted_principal_arns : [
     "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
   ]
-  foundation_model_arns = [
+  bedrock_invoke_resource_arns = [
     for model_id in var.foundation_model_ids :
-    "arn:aws:bedrock:${data.aws_region.current.name}::foundation-model/${model_id}"
+    startswith(model_id, "arn:")
+    ? model_id
+    : "arn:aws:bedrock:${data.aws_region.current.name}::foundation-model/${model_id}"
   ]
-  invoke_resources = length(local.foundation_model_arns) + length(var.inference_profile_arns) > 0 ? concat(
-    local.foundation_model_arns,
+  invoke_resources = length(local.bedrock_invoke_resource_arns) + length(var.inference_profile_arns) > 0 ? concat(
+    local.bedrock_invoke_resource_arns,
     var.inference_profile_arns
   ) : ["*"]
 }

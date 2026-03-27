@@ -79,6 +79,10 @@ def _log_level_env(name: str, default: str) -> str:
     return value
 
 
+def _looks_like_arn(value: str | None) -> bool:
+    return bool(value and value.startswith("arn:"))
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     app_env: str
@@ -120,6 +124,11 @@ class Settings:
         bedrock_inference_profile_arn = _optional_env(
             "BEDROCK_INFERENCE_PROFILE_ARN"
         )
+        if bedrock_model_id and _looks_like_arn(bedrock_model_id):
+            raise SettingsError(
+                "BEDROCK_MODEL_ID must be a model ID, not an ARN. "
+                "Use BEDROCK_INFERENCE_PROFILE_ARN for inference profile ARNs."
+            )
         if not bedrock_model_id and not bedrock_inference_profile_arn:
             raise SettingsError(
                 "Set BEDROCK_MODEL_ID or BEDROCK_INFERENCE_PROFILE_ARN before running the assistant."

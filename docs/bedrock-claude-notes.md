@@ -25,6 +25,7 @@ Why:
 - Use a Claude model that is already enabled in your AWS account and region
 - Keep the model ID in `.env` so swapping models does not require code changes
 - If your organization standardizes on inference profiles, set `BEDROCK_INFERENCE_PROFILE_ARN` and let the app use that instead of a direct model ID
+- Do not put an ARN into `BEDROCK_MODEL_ID`; keep that variable as a plain Bedrock model ID
 
 ## Configuration Variables
 
@@ -42,6 +43,9 @@ For the local CLI, your active AWS identity needs:
 
 - `bedrock:InvokeModel`
 - `bedrock:InvokeModelWithResponseStream`
+- access to the exact resource you invoke, which means:
+- the selected foundation model ID if you call Bedrock directly
+- the selected inference profile ARN if you use `BEDROCK_INFERENCE_PROFILE_ARN`
 
 The Terraform-created IAM role is intended for future AWS-hosted workloads. It also includes:
 
@@ -49,6 +53,12 @@ The Terraform-created IAM role is intended for future AWS-hosted workloads. It a
 - CloudWatch Logs write access for future hosted execution paths
 
 The local CLI does not automatically assume that role.
+
+If you use an inference profile:
+
+- set `BEDROCK_INFERENCE_PROFILE_ARN` in `.env`
+- add that same ARN to `bedrock_allowed_inference_profile_arns` in `infra/environments/dev/terraform.tfvars`
+- make sure your local AWS user or profile can invoke that profile as well
 
 ## Latency and Cost Notes
 

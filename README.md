@@ -85,6 +85,7 @@ Review these values before apply:
 - `aws_region`
 - `aws_profile`
 - `bedrock_allowed_model_ids`
+- `bedrock_allowed_inference_profile_arns`
 - `runtime_role_trusted_principal_arns`
 - `ai_assets_bucket_force_destroy`
 
@@ -212,6 +213,7 @@ With `--json`, the assistant prints a response object like:
 - The account has not been granted access to the Claude model you selected
 - The IAM identity can authenticate to AWS but cannot call Bedrock
 - Bedrock may return access denied or model not found errors
+- If you are using `BEDROCK_INFERENCE_PROFILE_ARN`, your AWS identity must also be allowed to invoke that exact inference profile ARN
 
 ### Region mismatch
 
@@ -222,6 +224,7 @@ With `--json`, the assistant prints a response object like:
 
 - `AWS_REGION` is required
 - `BEDROCK_MODEL_ID` or `BEDROCK_INFERENCE_PROFILE_ARN` is required
+- `BEDROCK_MODEL_ID` must be a plain model ID, not an ARN
 - Invalid `LOG_LEVEL`, `BEDROCK_MAX_TOKENS`, or `BEDROCK_TEMPERATURE` values fail fast during startup
 
 ## How The Pieces Fit Together
