@@ -111,6 +111,9 @@ def main() -> int:
             "Bedrock invocation failed",
             extra={
                 "aws_region": settings.aws_region,
+                "target_id": settings.runtime_target.identifier,
+                "target_kind": settings.runtime_target.kind,
+                "target_source": settings.runtime_target.source_env,
                 "error_code": exc.error_code,
                 "details": str(exc),
             },

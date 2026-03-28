@@ -69,6 +69,38 @@ class SettingsTests(unittest.TestCase):
             with self.assertRaises(SettingsError):
                 settings.resolve_guardrail_settings("user")
 
+    def test_accepts_inference_profile_id_as_runtime_target(self):
+        env_path = self._write_env(
+            """
+            AWS_REGION=us-east-1
+            BEDROCK_INFERENCE_PROFILE_ID=us.anthropic.claude-opus-4-6-v1
+            """
+        )
+
+        with mock.patch.dict(os.environ, {}, clear=True):
+            settings = Settings.from_env(env_path)
+
+        self.assertEqual(
+            settings.runtime_target.identifier, "us.anthropic.claude-opus-4-6-v1"
+        )
+        self.assertEqual(settings.runtime_target.kind, "inference_profile")
+        self.assertEqual(
+            settings.runtime_target.source_env, "BEDROCK_INFERENCE_PROFILE_ID"
+        )
+
+    def test_rejects_inference_profile_id_and_arn_together(self):
+        env_path = self._write_env(
+            """
+            AWS_REGION=us-east-1
+            BEDROCK_INFERENCE_PROFILE_ID=us.anthropic.claude-opus-4-6-v1
+            BEDROCK_INFERENCE_PROFILE_ARN=arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-opus-4-6-v1
+            """
+        )
+
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(SettingsError):
+                Settings.from_env(env_path)
+
 
 if __name__ == "__main__":
     unittest.main()

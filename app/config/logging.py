@@ -24,10 +24,13 @@ class JsonFormatter(logging.Formatter):
 
         for field in (
             "aws_region",
-            "model_id",
+            "target_id",
+            "target_kind",
+            "target_source",
             "request_id",
             "latency_ms",
             "stop_reason",
+            "service_tier",
             "input_tokens",
             "output_tokens",
             "guardrail_mode",

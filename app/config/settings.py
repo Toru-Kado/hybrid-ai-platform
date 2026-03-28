@@ -112,6 +112,13 @@ class GuardrailSettings:
 
 
 @dataclass(frozen=True, slots=True)
+class RuntimeTarget:
+    identifier: str
+    kind: str
+    source_env: str
+
+
+@dataclass(frozen=True, slots=True)
 class Settings:
     app_env: str
     app_name: str
@@ -119,6 +126,7 @@ class Settings:
     aws_region: str
     aws_profile: str | None
     bedrock_model_id: str | None
+    bedrock_inference_profile_id: str | None
     bedrock_inference_profile_arn: str | None
     bedrock_guardrail_identifier: str | None
     bedrock_guardrail_version: str | None
@@ -131,14 +139,33 @@ class Settings:
     assistant_log_group_name: str | None
 
     @property
-    def runtime_model_identifier(self) -> str:
+    def runtime_target(self) -> RuntimeTarget:
         if self.bedrock_inference_profile_arn:
-            return self.bedrock_inference_profile_arn
+            return RuntimeTarget(
+                identifier=self.bedrock_inference_profile_arn,
+                kind="inference_profile",
+                source_env="BEDROCK_INFERENCE_PROFILE_ARN",
+            )
+        if self.bedrock_inference_profile_id:
+            return RuntimeTarget(
+                identifier=self.bedrock_inference_profile_id,
+                kind="inference_profile",
+                source_env="BEDROCK_INFERENCE_PROFILE_ID",
+            )
         if self.bedrock_model_id:
-            return self.bedrock_model_id
+            return RuntimeTarget(
+                identifier=self.bedrock_model_id,
+                kind="model",
+                source_env="BEDROCK_MODEL_ID",
+            )
         raise SettingsError(
-            "Set BEDROCK_MODEL_ID or BEDROCK_INFERENCE_PROFILE_ARN before running the assistant."
+            "Set BEDROCK_MODEL_ID, BEDROCK_INFERENCE_PROFILE_ID, or "
+            "BEDROCK_INFERENCE_PROFILE_ARN before running the assistant."
         )
+
+    @property
+    def runtime_model_identifier(self) -> str:
+        return self.runtime_target.identifier
 
     def resolve_guardrail_settings(
         self,
@@ -177,13 +204,24 @@ class Settings:
             raise SettingsError("BEDROCK_TEMPERATURE must be between 0 and 1")
 
         bedrock_model_id = _optional_env("BEDROCK_MODEL_ID")
-        bedrock_inference_profile_arn = _optional_env(
-            "BEDROCK_INFERENCE_PROFILE_ARN"
-        )
+        bedrock_inference_profile_id = _optional_env("BEDROCK_INFERENCE_PROFILE_ID")
+        bedrock_inference_profile_arn = _optional_env("BEDROCK_INFERENCE_PROFILE_ARN")
         if bedrock_model_id and _looks_like_arn(bedrock_model_id):
             raise SettingsError(
                 "BEDROCK_MODEL_ID must be a model ID, not an ARN. "
                 "Use BEDROCK_INFERENCE_PROFILE_ARN for inference profile ARNs."
+            )
+        if bedrock_inference_profile_id and _looks_like_arn(
+            bedrock_inference_profile_id
+        ):
+            raise SettingsError(
+                "BEDROCK_INFERENCE_PROFILE_ID must be an inference profile ID, not an ARN. "
+                "Use BEDROCK_INFERENCE_PROFILE_ARN for inference profile ARNs."
+            )
+        if bedrock_inference_profile_id and bedrock_inference_profile_arn:
+            raise SettingsError(
+                "Set only one of BEDROCK_INFERENCE_PROFILE_ID or "
+                "BEDROCK_INFERENCE_PROFILE_ARN."
             )
         bedrock_guardrail_identifier = _optional_env("BEDROCK_GUARDRAIL_IDENTIFIER")
         bedrock_guardrail_version = _optional_env("BEDROCK_GUARDRAIL_VERSION")
@@ -201,9 +239,14 @@ class Settings:
                 "BEDROCK_GUARDRAIL_MODE requires BEDROCK_GUARDRAIL_IDENTIFIER and BEDROCK_GUARDRAIL_VERSION."
             )
         bedrock_guardrail_trace = _bool_env("BEDROCK_GUARDRAIL_TRACE", False)
-        if not bedrock_model_id and not bedrock_inference_profile_arn:
+        if (
+            not bedrock_model_id
+            and not bedrock_inference_profile_id
+            and not bedrock_inference_profile_arn
+        ):
             raise SettingsError(
-                "Set BEDROCK_MODEL_ID or BEDROCK_INFERENCE_PROFILE_ARN before running the assistant."
+                "Set BEDROCK_MODEL_ID, BEDROCK_INFERENCE_PROFILE_ID, or "
+                "BEDROCK_INFERENCE_PROFILE_ARN before running the assistant."
             )
 
         return cls(
@@ -213,6 +256,7 @@ class Settings:
             aws_region=_required_env("AWS_REGION"),
             aws_profile=_optional_env("AWS_PROFILE"),
             bedrock_model_id=bedrock_model_id,
+            bedrock_inference_profile_id=bedrock_inference_profile_id,
             bedrock_inference_profile_arn=bedrock_inference_profile_arn,
             bedrock_guardrail_identifier=bedrock_guardrail_identifier,
             bedrock_guardrail_version=bedrock_guardrail_version,

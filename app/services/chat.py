@@ -13,12 +13,15 @@ logger = logging.getLogger(__name__)
 @dataclass(slots=True)
 class ChatResult:
     response_text: str
-    model_id: str
+    target_id: str
+    target_kind: str
+    target_source: str
     guardrail_mode: str
     guardrail_identifier: str | None
     guardrail_applied: bool
     guardrail_intervened: bool
     stop_reason: str | None
+    service_tier: str | None
     input_tokens: int | None
     output_tokens: int | None
     request_id: str | None
@@ -27,12 +30,15 @@ class ChatResult:
     def to_dict(self) -> dict[str, object]:
         return {
             "response_text": self.response_text,
-            "model_id": self.model_id,
+            "target_id": self.target_id,
+            "target_kind": self.target_kind,
+            "target_source": self.target_source,
             "guardrail_mode": self.guardrail_mode,
             "guardrail_identifier": self.guardrail_identifier,
             "guardrail_applied": self.guardrail_applied,
             "guardrail_intervened": self.guardrail_intervened,
             "stop_reason": self.stop_reason,
+            "service_tier": self.service_tier,
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
             "request_id": self.request_id,
@@ -66,7 +72,9 @@ class ChatService:
         latency_ms = int((time.perf_counter() - started_at) * 1000)
         result = _build_chat_result(
             response=response,
-            model_id=self._client.model_identifier,
+            target_id=self._client.target_identifier,
+            target_kind=self._settings.runtime_target.kind,
+            target_source=self._settings.runtime_target.source_env,
             latency_ms=latency_ms,
             guardrail_settings=guardrail_settings,
         )
@@ -74,11 +82,14 @@ class ChatService:
         logger.info(
             "Bedrock prompt completed",
             extra={
-                "model_id": result.model_id,
+                "target_id": result.target_id,
+                "target_kind": result.target_kind,
+                "target_source": result.target_source,
                 "guardrail_mode": result.guardrail_mode,
                 "guardrail_identifier": result.guardrail_identifier,
                 "guardrail_applied": result.guardrail_applied,
                 "guardrail_intervened": result.guardrail_intervened,
+                "service_tier": result.service_tier,
                 "request_id": result.request_id,
                 "latency_ms": result.latency_ms,
                 "stop_reason": result.stop_reason,
@@ -94,13 +105,17 @@ class ChatService:
 def _build_chat_result(
     *,
     response: BedrockResponse,
-    model_id: str,
+    target_id: str,
+    target_kind: str,
+    target_source: str,
     latency_ms: int,
     guardrail_settings: GuardrailSettings | None,
 ) -> ChatResult:
     return ChatResult(
         response_text=response.text,
-        model_id=model_id,
+        target_id=target_id,
+        target_kind=target_kind,
+        target_source=target_source,
         guardrail_mode=guardrail_settings.mode if guardrail_settings else "off",
         guardrail_identifier=(
             guardrail_settings.identifier if guardrail_settings else None
@@ -108,6 +123,7 @@ def _build_chat_result(
         guardrail_applied=guardrail_settings is not None,
         guardrail_intervened=response.stop_reason == "guardrail_intervened",
         stop_reason=response.stop_reason,
+        service_tier=response.service_tier,
         input_tokens=response.usage_input_tokens,
         output_tokens=response.usage_output_tokens,
         request_id=response.request_id,

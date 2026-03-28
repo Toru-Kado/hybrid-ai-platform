@@ -24,6 +24,7 @@ class BedrockResponse:
     usage_input_tokens: int | None
     usage_output_tokens: int | None
     request_id: str | None
+    service_tier: str | None
 
 
 class BedrockRuntimeClient:
@@ -48,8 +49,8 @@ class BedrockRuntimeClient:
         self._handled_exceptions = handled_exceptions
 
     @property
-    def model_identifier(self) -> str:
-        return self._settings.runtime_model_identifier
+    def target_identifier(self) -> str:
+        return self._settings.runtime_target.identifier
 
     def send_message(
         self,
@@ -61,7 +62,7 @@ class BedrockRuntimeClient:
         guardrail_settings: GuardrailSettings | None = None,
     ) -> BedrockResponse:
         payload = _build_converse_payload(
-            model_identifier=self.model_identifier,
+            target_identifier=self.target_identifier,
             prompt=prompt,
             system_prompt=system_prompt,
             max_tokens=max_tokens or self._settings.bedrock_max_tokens,
@@ -71,13 +72,16 @@ class BedrockRuntimeClient:
                 else self._settings.bedrock_temperature
             ),
             guardrail_settings=guardrail_settings,
+            request_metadata=_build_request_metadata(self._settings),
         )
 
         logger.debug(
             "Sending Bedrock Converse request",
             extra={
                 "aws_region": self._settings.aws_region,
-                "model_id": self.model_identifier,
+                "target_id": self.target_identifier,
+                "target_kind": self._settings.runtime_target.kind,
+                "target_source": self._settings.runtime_target.source_env,
                 "guardrail_mode": guardrail_settings.mode if guardrail_settings else "off",
                 "guardrail_identifier": (
                     guardrail_settings.identifier if guardrail_settings else None
@@ -89,7 +93,11 @@ class BedrockRuntimeClient:
         try:
             response = self._client.converse(**payload)
         except self._handled_exceptions as exc:
-            raise _normalize_bedrock_error(exc) from exc
+            raise _normalize_bedrock_error(
+                exc,
+                target_identifier=self.target_identifier,
+                target_kind=self._settings.runtime_target.kind,
+            ) from exc
 
         output_message = response.get("output", {}).get("message", {})
         content_blocks = output_message.get("content", [])
@@ -107,20 +115,22 @@ class BedrockRuntimeClient:
             usage_input_tokens=usage.get("inputTokens"),
             usage_output_tokens=usage.get("outputTokens"),
             request_id=request_id,
+            service_tier=response.get("serviceTier", {}).get("type"),
         )
 
 
 def _build_converse_payload(
     *,
-    model_identifier: str,
+    target_identifier: str,
     prompt: str,
     system_prompt: str | None,
     max_tokens: int,
     temperature: float,
     guardrail_settings: GuardrailSettings | None,
+    request_metadata: dict[str, str] | None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
-        "modelId": model_identifier,
+        "modelId": target_identifier,
         "messages": [
             {
                 "role": "user",
@@ -144,7 +154,19 @@ def _build_converse_payload(
     if system_prompt:
         payload["system"] = _build_system_content(system_prompt, guardrail_settings)
 
+    if request_metadata:
+        payload["requestMetadata"] = request_metadata
+
     return payload
+
+
+def _build_request_metadata(settings: Settings) -> dict[str, str]:
+    return {
+        "app": settings.app_name,
+        "environment": settings.app_env,
+        "targetKind": settings.runtime_target.kind,
+        "targetSource": settings.runtime_target.source_env,
+    }
 
 
 def _build_user_content(
@@ -204,7 +226,12 @@ def _load_bedrock_dependencies() -> tuple[Any, Any, tuple[type[BaseException], .
     return boto3, botocore_config, handled_exceptions
 
 
-def _normalize_bedrock_error(exc: BaseException) -> BedrockClientError:
+def _normalize_bedrock_error(
+    exc: BaseException,
+    *,
+    target_identifier: str | None = None,
+    target_kind: str | None = None,
+) -> BedrockClientError:
     error_code = exc.__class__.__name__
 
     if error_code == "ProfileNotFound":
@@ -237,9 +264,71 @@ def _normalize_bedrock_error(exc: BaseException) -> BedrockClientError:
         service_code = error.get("Code")
         service_message = error.get("Message")
         if service_code or service_message:
+            normalized_message = _normalize_service_error_message(
+                service_code=service_code,
+                service_message=service_message,
+                target_identifier=target_identifier,
+                target_kind=target_kind,
+            )
             return BedrockClientError(
-                service_message or "Amazon Bedrock rejected the request.",
+                normalized_message or "Amazon Bedrock rejected the request.",
                 error_code=service_code or error_code,
             )
 
     return BedrockClientError(str(exc), error_code=error_code)
+
+
+def _normalize_service_error_message(
+    *,
+    service_code: str | None,
+    service_message: str | None,
+    target_identifier: str | None,
+    target_kind: str | None,
+) -> str | None:
+    if not service_code and not service_message:
+        return None
+
+    message = service_message or "Amazon Bedrock rejected the request."
+    lower_message = message.lower()
+
+    if (
+        service_code == "ValidationException"
+        and "on-demand throughput" in lower_message
+        and target_kind == "model"
+    ):
+        return (
+            f"{message} Configure BEDROCK_INFERENCE_PROFILE_ID or "
+            f"BEDROCK_INFERENCE_PROFILE_ARN for a matching inference profile "
+            f"instead of invoking the model directly."
+        )
+
+    if service_code == "ThrottlingException" and "tokens per day" in lower_message:
+        return (
+            f"{message} The Bedrock daily token quota for the current account or "
+            f"runtime target is exhausted. Wait for the quota window to reset, "
+            f"lower BEDROCK_MAX_TOKENS, or switch to a different model or "
+            f"inference profile."
+        )
+
+    if service_code == "AccessDeniedException":
+        if target_kind == "inference_profile":
+            return (
+                f"{message} Ensure the active AWS identity can call "
+                f"bedrock:InvokeModel on the selected inference profile "
+                f"({target_identifier})."
+            )
+        if target_kind == "model":
+            return (
+                f"{message} Ensure the active AWS identity can call "
+                f"bedrock:InvokeModel on the selected model resource "
+                f"({target_identifier})."
+            )
+
+    if service_code == "ResourceNotFoundException" and target_kind == "inference_profile":
+        return (
+            f"{message} Verify that the inference profile exists in this account and "
+            f"region, and that BEDROCK_INFERENCE_PROFILE_ID or "
+            f"BEDROCK_INFERENCE_PROFILE_ARN points to the correct target."
+        )
+
+    return message
