@@ -67,7 +67,7 @@ Edit `.env` and set at least:
 
 - `AWS_REGION`
 - `AWS_PROFILE`
-- `BEDROCK_MODEL_ID` or `BEDROCK_INFERENCE_PROFILE_ARN`
+- `BEDROCK_MODEL_ID` or `BEDROCK_INFERENCE_PROFILE_ID` or `BEDROCK_INFERENCE_PROFILE_ARN`
 - optional: `BEDROCK_GUARDRAIL_IDENTIFIER` + `BEDROCK_GUARDRAIL_VERSION`
 
 Example:
@@ -247,7 +247,7 @@ This repository keeps local development lightweight and pushes model inference t
 JSON log example:
 
 ```json
-{"timestamp":"2026-03-27T00:00:00+00:00","level":"INFO","logger":"app.services.chat","message":"Bedrock prompt completed","service":"hybrid-ai-assistant","environment":"dev","aws_region":"us-east-1","model_id":"anthropic.claude-3-5-sonnet-20241022-v2:0","guardrail_mode":"user","guardrail_identifier":"gr-abc123","guardrail_applied":true,"guardrail_intervened":false,"request_id":"...","latency_ms":1234}
+{"timestamp":"2026-03-27T00:00:00+00:00","level":"INFO","logger":"app.services.chat","message":"Bedrock prompt completed","service":"hybrid-ai-assistant","environment":"dev","aws_region":"us-east-1","target_id":"us.anthropic.claude-opus-4-6-v1","target_kind":"inference_profile","target_source":"BEDROCK_INFERENCE_PROFILE_ID","guardrail_mode":"user","guardrail_identifier":"gr-abc123","guardrail_applied":true,"guardrail_intervened":false,"request_id":"...","latency_ms":1234}
 ```
 
 With `--json`, the assistant prints a response object like:
@@ -255,12 +255,15 @@ With `--json`, the assistant prints a response object like:
 ```json
 {
   "response_text": "...",
-  "model_id": "...",
+  "target_id": "...",
+  "target_kind": "inference_profile",
+  "target_source": "BEDROCK_INFERENCE_PROFILE_ID",
   "guardrail_mode": "user",
   "guardrail_identifier": "gr-abc123",
   "guardrail_applied": true,
   "guardrail_intervened": false,
   "stop_reason": "...",
+  "service_tier": "...",
   "input_tokens": 123,
   "output_tokens": 456,
   "request_id": "...",
@@ -281,6 +284,9 @@ With `--json`, the assistant prints a response object like:
 - The account has not been granted access to the Claude model you selected
 - The IAM identity can authenticate to AWS but cannot call Bedrock
 - Bedrock may return access denied or model not found errors
+- Some Claude models require an inference profile instead of direct on-demand model invocation
+- `ThrottlingException: Too many tokens per day` indicates the account or profile hit Bedrock daily token quota
+- If you are using `BEDROCK_INFERENCE_PROFILE_ID`, your AWS identity must also be allowed to invoke the matching inference profile
 - If you are using `BEDROCK_INFERENCE_PROFILE_ARN`, your AWS identity must also be allowed to invoke that exact inference profile ARN
 - If you are using Bedrock guardrails, your AWS identity must also be allowed to apply the exact guardrail ARN
 
@@ -292,8 +298,10 @@ With `--json`, the assistant prints a response object like:
 ### Missing environment variables
 
 - `AWS_REGION` is required
-- `BEDROCK_MODEL_ID` or `BEDROCK_INFERENCE_PROFILE_ARN` is required
+- `BEDROCK_MODEL_ID`, `BEDROCK_INFERENCE_PROFILE_ID`, or `BEDROCK_INFERENCE_PROFILE_ARN` is required
 - `BEDROCK_MODEL_ID` must be a plain model ID, not an ARN
+- `BEDROCK_INFERENCE_PROFILE_ID` must be a profile ID, not an ARN
+- Set only one of `BEDROCK_INFERENCE_PROFILE_ID` or `BEDROCK_INFERENCE_PROFILE_ARN`
 - If you set one of `BEDROCK_GUARDRAIL_IDENTIFIER` or `BEDROCK_GUARDRAIL_VERSION`, set both
 - `BEDROCK_GUARDRAIL_MODE` must be one of `off`, `user`, or `all`
 - Invalid `LOG_LEVEL`, `BEDROCK_MAX_TOKENS`, or `BEDROCK_TEMPERATURE` values fail fast during startup

@@ -24,7 +24,7 @@ Why:
 
 - Use a Claude model that is already enabled in your AWS account and region
 - Keep the model ID in `.env` so swapping models does not require code changes
-- If your organization standardizes on inference profiles, set `BEDROCK_INFERENCE_PROFILE_ARN` and let the app use that instead of a direct model ID
+- If your organization standardizes on inference profiles, set `BEDROCK_INFERENCE_PROFILE_ID` or `BEDROCK_INFERENCE_PROFILE_ARN` and let the app use that instead of a direct model ID
 - Do not put an ARN into `BEDROCK_MODEL_ID`; keep that variable as a plain Bedrock model ID
 
 ## Guardrail Attachment Model
@@ -45,6 +45,7 @@ That makes it easy to keep internal orchestration prompts less constrained while
 - `AWS_REGION`: region for the Bedrock runtime client
 - `AWS_PROFILE`: local AWS profile for development
 - `BEDROCK_MODEL_ID`: direct model identifier
+- `BEDROCK_INFERENCE_PROFILE_ID`: optional inference profile identifier
 - `BEDROCK_INFERENCE_PROFILE_ARN`: optional override for inference profile usage
 - `BEDROCK_MAX_TOKENS`: default token budget
 - `BEDROCK_TEMPERATURE`: default generation temperature
@@ -58,7 +59,7 @@ For the local CLI, your active AWS identity needs:
 - `bedrock:InvokeModelWithResponseStream`
 - access to the exact resource you invoke, which means:
 - the selected foundation model ID if you call Bedrock directly
-- the selected inference profile ARN if you use `BEDROCK_INFERENCE_PROFILE_ARN`
+- the selected inference profile ID or ARN if you use an inference profile selector
 - `bedrock:ApplyGuardrail` on the selected guardrail ARN if you use Bedrock guardrails
 
 The Terraform-created IAM role is intended for future AWS-hosted workloads. It also includes:
@@ -70,9 +71,12 @@ The local CLI does not automatically assume that role.
 
 If you use an inference profile:
 
-- set `BEDROCK_INFERENCE_PROFILE_ARN` in `.env`
+- set `BEDROCK_INFERENCE_PROFILE_ID` or `BEDROCK_INFERENCE_PROFILE_ARN` in `.env`
 - add that same ARN to `bedrock_allowed_inference_profile_arns` in `infra/environments/dev/terraform.tfvars`
 - make sure your local AWS user or profile can invoke that profile as well
+
+The runtime logs and JSON output use `target_id`, `target_kind`, and `target_source`
+so it is obvious whether a request went to a direct model ID or an inference profile.
 
 If you use a Bedrock guardrail:
 
