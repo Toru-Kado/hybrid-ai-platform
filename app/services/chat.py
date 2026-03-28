@@ -4,7 +4,7 @@ import logging
 import time
 from dataclasses import dataclass
 
-from app.clients.bedrock import BedrockResponse, BedrockRuntimeClient
+from app.clients.base import AssistantClient, AssistantResponse
 from app.config.settings import GuardrailSettings, Settings
 
 logger = logging.getLogger(__name__)
@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 @dataclass(slots=True)
 class ChatResult:
     response_text: str
+    provider: str
     target_id: str
     target_kind: str
     target_source: str
@@ -30,6 +31,7 @@ class ChatResult:
     def to_dict(self) -> dict[str, object]:
         return {
             "response_text": self.response_text,
+            "provider": self.provider,
             "target_id": self.target_id,
             "target_kind": self.target_kind,
             "target_source": self.target_source,
@@ -47,7 +49,7 @@ class ChatResult:
 
 
 class ChatService:
-    def __init__(self, *, client: BedrockRuntimeClient, settings: Settings) -> None:
+    def __init__(self, *, client: AssistantClient, settings: Settings) -> None:
         self._client = client
         self._settings = settings
 
@@ -72,16 +74,18 @@ class ChatService:
         latency_ms = int((time.perf_counter() - started_at) * 1000)
         result = _build_chat_result(
             response=response,
+            provider=self._client.provider_name,
             target_id=self._client.target_identifier,
-            target_kind=self._settings.runtime_target.kind,
-            target_source=self._settings.runtime_target.source_env,
+            target_kind=self._client.target_kind,
+            target_source=self._client.target_source,
             latency_ms=latency_ms,
             guardrail_settings=guardrail_settings,
         )
 
         logger.info(
-            "Bedrock prompt completed",
+            "Model prompt completed",
             extra={
+                "provider": result.provider,
                 "target_id": result.target_id,
                 "target_kind": result.target_kind,
                 "target_source": result.target_source,
@@ -104,7 +108,8 @@ class ChatService:
 
 def _build_chat_result(
     *,
-    response: BedrockResponse,
+    response: AssistantResponse,
+    provider: str,
     target_id: str,
     target_kind: str,
     target_source: str,
@@ -113,6 +118,7 @@ def _build_chat_result(
 ) -> ChatResult:
     return ChatResult(
         response_text=response.text,
+        provider=provider,
         target_id=target_id,
         target_kind=target_kind,
         target_source=target_source,

@@ -1,30 +1,15 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
 from typing import Any
 
+from app.clients.base import AssistantClientError, AssistantResponse
 from app.config.settings import GuardrailSettings, Settings
 
 logger = logging.getLogger(__name__)
 
-
-class BedrockClientError(RuntimeError):
-    """Raised when a Bedrock invocation fails."""
-
-    def __init__(self, message: str, *, error_code: str | None = None) -> None:
-        super().__init__(message)
-        self.error_code = error_code
-
-
-@dataclass(slots=True)
-class BedrockResponse:
-    text: str
-    stop_reason: str | None
-    usage_input_tokens: int | None
-    usage_output_tokens: int | None
-    request_id: str | None
-    service_tier: str | None
+BedrockClientError = AssistantClientError
+BedrockResponse = AssistantResponse
 
 
 class BedrockRuntimeClient:
@@ -52,6 +37,18 @@ class BedrockRuntimeClient:
     def target_identifier(self) -> str:
         return self._settings.runtime_target.identifier
 
+    @property
+    def provider_name(self) -> str:
+        return "bedrock"
+
+    @property
+    def target_kind(self) -> str:
+        return self._settings.runtime_target.kind
+
+    @property
+    def target_source(self) -> str:
+        return self._settings.runtime_target.source_env
+
     def send_message(
         self,
         prompt: str,
@@ -65,11 +62,11 @@ class BedrockRuntimeClient:
             target_identifier=self.target_identifier,
             prompt=prompt,
             system_prompt=system_prompt,
-            max_tokens=max_tokens or self._settings.bedrock_max_tokens,
+            max_tokens=max_tokens or self._settings.model_max_tokens,
             temperature=(
                 temperature
                 if temperature is not None
-                else self._settings.bedrock_temperature
+                else self._settings.model_temperature
             ),
             guardrail_settings=guardrail_settings,
             request_metadata=_build_request_metadata(self._settings),
@@ -78,10 +75,11 @@ class BedrockRuntimeClient:
         logger.debug(
             "Sending Bedrock Converse request",
             extra={
+                "provider": self.provider_name,
                 "aws_region": self._settings.aws_region,
                 "target_id": self.target_identifier,
-                "target_kind": self._settings.runtime_target.kind,
-                "target_source": self._settings.runtime_target.source_env,
+                "target_kind": self.target_kind,
+                "target_source": self.target_source,
                 "guardrail_mode": guardrail_settings.mode if guardrail_settings else "off",
                 "guardrail_identifier": (
                     guardrail_settings.identifier if guardrail_settings else None
@@ -96,7 +94,7 @@ class BedrockRuntimeClient:
             raise _normalize_bedrock_error(
                 exc,
                 target_identifier=self.target_identifier,
-                target_kind=self._settings.runtime_target.kind,
+                target_kind=self.target_kind,
             ) from exc
 
         output_message = response.get("output", {}).get("message", {})

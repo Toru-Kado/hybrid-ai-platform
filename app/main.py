@@ -5,7 +5,7 @@ import json
 import logging
 import sys
 
-from app.clients.bedrock import BedrockClientError, BedrockRuntimeClient
+from app.clients import AssistantClientError, create_runtime_client
 from app.config.logging import configure_logging
 from app.config.settings import Settings, SettingsError
 from app.services.chat import ChatService
@@ -13,7 +13,7 @@ from app.services.chat import ChatService
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="CLI assistant for invoking Anthropic Claude through Amazon Bedrock."
+        description="CLI assistant for invoking Anthropic Claude through Amazon Bedrock or Anthropic directly."
     )
     parser.add_argument(
         "--prompt",
@@ -31,7 +31,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--temperature",
         type=float,
-        help="Override the Bedrock temperature for this request.",
+        help="Override the generation temperature for this request.",
     )
     parser.add_argument(
         "--json",
@@ -47,7 +47,7 @@ def parse_args() -> argparse.Namespace:
         "--guardrails",
         choices=["off", "user", "all"],
         help=(
-            "Override Bedrock guardrail handling for this run. "
+            "Override Bedrock guardrail handling for this run when AI_PROVIDER=bedrock. "
             "off omits guardrails, user guards only the user prompt, all guards user and system prompts."
         ),
     )
@@ -97,7 +97,7 @@ def main() -> int:
 
     try:
         prompt = resolve_prompt(args)
-        client = BedrockRuntimeClient(settings=settings)
+        client = create_runtime_client(settings=settings)
         service = ChatService(client=client, settings=settings)
         result = service.chat(
             prompt=prompt,
@@ -106,10 +106,11 @@ def main() -> int:
             temperature=args.temperature,
             guardrail_settings=guardrail_settings,
         )
-    except BedrockClientError as exc:
+    except AssistantClientError as exc:
         logger.error(
-            "Bedrock invocation failed",
+            "Provider invocation failed",
             extra={
+                "provider": settings.ai_provider,
                 "aws_region": settings.aws_region,
                 "target_id": settings.runtime_target.identifier,
                 "target_kind": settings.runtime_target.kind,
@@ -118,7 +119,7 @@ def main() -> int:
                 "details": str(exc),
             },
         )
-        print(f"Bedrock error: {exc}", file=sys.stderr)
+        print(f"{settings.ai_provider.capitalize()} error: {exc}", file=sys.stderr)
         return 1
     except Exception:
         logger.exception("Unexpected assistant failure")

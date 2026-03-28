@@ -122,9 +122,14 @@ class RuntimeTarget:
 class Settings:
     app_env: str
     app_name: str
+    ai_provider: str
     log_level: str
-    aws_region: str
+    aws_region: str | None
     aws_profile: str | None
+    anthropic_api_key: str | None
+    anthropic_model: str | None
+    anthropic_base_url: str
+    anthropic_api_version: str
     bedrock_model_id: str | None
     bedrock_inference_profile_id: str | None
     bedrock_inference_profile_arn: str | None
@@ -132,14 +137,22 @@ class Settings:
     bedrock_guardrail_version: str | None
     bedrock_guardrail_mode: str
     bedrock_guardrail_trace: bool
-    bedrock_max_tokens: int
-    bedrock_temperature: float
+    model_max_tokens: int
+    model_temperature: float
     assistant_system_prompt: str | None
     ai_assets_bucket_name: str | None
     assistant_log_group_name: str | None
 
     @property
     def runtime_target(self) -> RuntimeTarget:
+        if self.ai_provider == "anthropic":
+            if self.anthropic_model:
+                return RuntimeTarget(
+                    identifier=self.anthropic_model,
+                    kind="model",
+                    source_env="ANTHROPIC_MODEL",
+                )
+            raise SettingsError("Set ANTHROPIC_MODEL before running the assistant.")
         if self.bedrock_inference_profile_arn:
             return RuntimeTarget(
                 identifier=self.bedrock_inference_profile_arn,
@@ -174,9 +187,13 @@ class Settings:
         mode = (mode_override or self.bedrock_guardrail_mode).strip().lower()
         allowed_modes = {"off", "user", "all"}
         if mode not in allowed_modes:
-            raise SettingsError(
-                "Guardrail mode must be one of: all, off, user"
-            )
+            raise SettingsError("Guardrail mode must be one of: all, off, user")
+        if self.ai_provider != "bedrock":
+            if mode != "off":
+                raise SettingsError(
+                    "Bedrock guardrails require AI_PROVIDER=bedrock."
+                )
+            return None
         if mode == "off":
             return None
         if not self.bedrock_guardrail_identifier or not self.bedrock_guardrail_version:
@@ -195,13 +212,26 @@ class Settings:
     def from_env(cls, dotenv_path: str | Path = ".env") -> "Settings":
         load_dotenv(dotenv_path)
 
-        bedrock_max_tokens = _int_env("BEDROCK_MAX_TOKENS", 1024)
-        if bedrock_max_tokens <= 0:
-            raise SettingsError("BEDROCK_MAX_TOKENS must be greater than zero")
+        ai_provider = _choice_env("AI_PROVIDER", "bedrock", {"anthropic", "bedrock"})
 
-        bedrock_temperature = _float_env("BEDROCK_TEMPERATURE", 0.2)
-        if bedrock_temperature < 0 or bedrock_temperature > 1:
-            raise SettingsError("BEDROCK_TEMPERATURE must be between 0 and 1")
+        model_max_tokens = _int_env(
+            "MODEL_MAX_TOKENS",
+            _int_env("BEDROCK_MAX_TOKENS", 1024),
+        )
+        if model_max_tokens <= 0:
+            raise SettingsError("MODEL_MAX_TOKENS must be greater than zero")
+
+        model_temperature = _float_env(
+            "MODEL_TEMPERATURE",
+            _float_env("BEDROCK_TEMPERATURE", 0.2),
+        )
+        if model_temperature < 0 or model_temperature > 1:
+            raise SettingsError("MODEL_TEMPERATURE must be between 0 and 1")
+
+        anthropic_api_key = _optional_env("ANTHROPIC_API_KEY")
+        anthropic_model = _optional_env("ANTHROPIC_MODEL")
+        anthropic_base_url = os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
+        anthropic_api_version = os.getenv("ANTHROPIC_API_VERSION", "2023-06-01")
 
         bedrock_model_id = _optional_env("BEDROCK_MODEL_ID")
         bedrock_inference_profile_id = _optional_env("BEDROCK_INFERENCE_PROFILE_ID")
@@ -234,27 +264,47 @@ class Settings:
             "user" if bedrock_guardrail_identifier else "off",
             {"off", "user", "all"},
         )
-        if bedrock_guardrail_mode != "off" and not bedrock_guardrail_identifier:
+        if (
+            ai_provider == "bedrock"
+            and bedrock_guardrail_mode != "off"
+            and not bedrock_guardrail_identifier
+        ):
             raise SettingsError(
                 "BEDROCK_GUARDRAIL_MODE requires BEDROCK_GUARDRAIL_IDENTIFIER and BEDROCK_GUARDRAIL_VERSION."
             )
         bedrock_guardrail_trace = _bool_env("BEDROCK_GUARDRAIL_TRACE", False)
-        if (
-            not bedrock_model_id
-            and not bedrock_inference_profile_id
-            and not bedrock_inference_profile_arn
-        ):
-            raise SettingsError(
-                "Set BEDROCK_MODEL_ID, BEDROCK_INFERENCE_PROFILE_ID, or "
-                "BEDROCK_INFERENCE_PROFILE_ARN before running the assistant."
-            )
+        aws_region = _optional_env("AWS_REGION")
+        aws_profile = _optional_env("AWS_PROFILE")
+
+        if ai_provider == "anthropic":
+            if not anthropic_api_key:
+                raise SettingsError("Set ANTHROPIC_API_KEY before running the assistant.")
+            if not anthropic_model:
+                raise SettingsError("Set ANTHROPIC_MODEL before running the assistant.")
+        else:
+            if (
+                not bedrock_model_id
+                and not bedrock_inference_profile_id
+                and not bedrock_inference_profile_arn
+            ):
+                raise SettingsError(
+                    "Set BEDROCK_MODEL_ID, BEDROCK_INFERENCE_PROFILE_ID, or "
+                    "BEDROCK_INFERENCE_PROFILE_ARN before running the assistant."
+                )
+            if not aws_region:
+                raise SettingsError("Missing required environment variable: AWS_REGION")
 
         return cls(
             app_env=os.getenv("APP_ENV", "dev"),
             app_name=os.getenv("APP_NAME", "hybrid-ai-assistant"),
+            ai_provider=ai_provider,
             log_level=_log_level_env("LOG_LEVEL", "INFO"),
-            aws_region=_required_env("AWS_REGION"),
-            aws_profile=_optional_env("AWS_PROFILE"),
+            aws_region=aws_region,
+            aws_profile=aws_profile,
+            anthropic_api_key=anthropic_api_key,
+            anthropic_model=anthropic_model,
+            anthropic_base_url=anthropic_base_url.rstrip("/"),
+            anthropic_api_version=anthropic_api_version,
             bedrock_model_id=bedrock_model_id,
             bedrock_inference_profile_id=bedrock_inference_profile_id,
             bedrock_inference_profile_arn=bedrock_inference_profile_arn,
@@ -262,8 +312,8 @@ class Settings:
             bedrock_guardrail_version=bedrock_guardrail_version,
             bedrock_guardrail_mode=bedrock_guardrail_mode,
             bedrock_guardrail_trace=bedrock_guardrail_trace,
-            bedrock_max_tokens=bedrock_max_tokens,
-            bedrock_temperature=bedrock_temperature,
+            model_max_tokens=model_max_tokens,
+            model_temperature=model_temperature,
             assistant_system_prompt=_optional_env("ASSISTANT_SYSTEM_PROMPT"),
             ai_assets_bucket_name=_optional_env("AI_ASSETS_BUCKET_NAME"),
             assistant_log_group_name=_optional_env("ASSISTANT_LOG_GROUP_NAME"),

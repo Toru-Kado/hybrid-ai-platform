@@ -23,6 +23,7 @@ class JsonFormatter(logging.Formatter):
         }
 
         for field in (
+            "provider",
             "aws_region",
             "target_id",
             "target_kind",

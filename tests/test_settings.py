@@ -101,6 +101,37 @@ class SettingsTests(unittest.TestCase):
             with self.assertRaises(SettingsError):
                 Settings.from_env(env_path)
 
+    def test_allows_anthropic_provider_without_aws_region(self):
+        env_path = self._write_env(
+            """
+            AI_PROVIDER=anthropic
+            ANTHROPIC_API_KEY=test-key
+            ANTHROPIC_MODEL=claude-sonnet-4-5
+            """
+        )
+
+        with mock.patch.dict(os.environ, {}, clear=True):
+            settings = Settings.from_env(env_path)
+
+        self.assertEqual(settings.ai_provider, "anthropic")
+        self.assertIsNone(settings.aws_region)
+        self.assertEqual(settings.runtime_target.identifier, "claude-sonnet-4-5")
+
+    def test_rejects_bedrock_guardrails_for_anthropic_provider(self):
+        env_path = self._write_env(
+            """
+            AI_PROVIDER=anthropic
+            ANTHROPIC_API_KEY=test-key
+            ANTHROPIC_MODEL=claude-sonnet-4-5
+            BEDROCK_GUARDRAIL_MODE=user
+            """
+        )
+
+        with mock.patch.dict(os.environ, {}, clear=True):
+            settings = Settings.from_env(env_path)
+            with self.assertRaises(SettingsError):
+                settings.resolve_guardrail_settings()
+
 
 if __name__ == "__main__":
     unittest.main()
