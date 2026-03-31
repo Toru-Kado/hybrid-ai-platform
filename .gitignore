@@ -21,3 +21,4 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 .terraform.lock.hcl
+infra/environments/dev/terraform.tfvars

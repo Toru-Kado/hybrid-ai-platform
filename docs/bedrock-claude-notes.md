@@ -24,8 +24,14 @@ Why:
 
 - Use a Claude model that is already enabled in your AWS account and region
 - Keep the model ID in `.env` so swapping models does not require code changes
-- If your organization standardizes on inference profiles, set `BEDROCK_INFERENCE_PROFILE_ID` or `BEDROCK_INFERENCE_PROFILE_ARN` and let the app use that instead of a direct model ID
+- Prefer `BEDROCK_INFERENCE_PROFILE_ID` or `BEDROCK_INFERENCE_PROFILE_ARN` for newer Claude models and cross-region inference
+- Use `BEDROCK_MODEL_ID` only when direct invocation is supported for that target in your account and region
 - Do not put an ARN into `BEDROCK_MODEL_ID`; keep that variable as a plain Bedrock model ID
+
+Observed in live testing for this repository on March 31, 2026:
+
+- `BEDROCK_INFERENCE_PROFILE_ARN` worked for the configured Claude Sonnet 4 target
+- clearing the inference profile and invoking the direct model ID returned a Bedrock `ValidationException` requiring an inference profile
 
 ## Guardrail Attachment Model
 
@@ -47,8 +53,8 @@ That makes it easy to keep internal orchestration prompts less constrained while
 - `BEDROCK_MODEL_ID`: direct model identifier
 - `BEDROCK_INFERENCE_PROFILE_ID`: optional inference profile identifier
 - `BEDROCK_INFERENCE_PROFILE_ARN`: optional override for inference profile usage
-- `BEDROCK_MAX_TOKENS`: default token budget
-- `BEDROCK_TEMPERATURE`: default generation temperature
+- `MODEL_MAX_TOKENS`: default token budget
+- `MODEL_TEMPERATURE`: default generation temperature
 - `ASSISTANT_SYSTEM_PROMPT`: baseline system behavior
 
 ## Permission Notes

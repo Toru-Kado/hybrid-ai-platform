@@ -69,16 +69,20 @@ cp .env.example .env
 Edit `.env` and set at least:
 
 - `AI_PROVIDER`
-- if `AI_PROVIDER=bedrock`:
-- `AWS_REGION`
-- `AWS_PROFILE`
-- `BEDROCK_MODEL_ID` or `BEDROCK_INFERENCE_PROFILE_ID` or `BEDROCK_INFERENCE_PROFILE_ARN`
-- optional: `BEDROCK_GUARDRAIL_IDENTIFIER` + `BEDROCK_GUARDRAIL_VERSION`
-- if `AI_PROVIDER=anthropic`:
-- `ANTHROPIC_API_KEY`
-- `ANTHROPIC_MODEL`
+- If `AI_PROVIDER=bedrock`: `AWS_REGION`, `AWS_PROFILE`, and one of `BEDROCK_INFERENCE_PROFILE_ID`, `BEDROCK_INFERENCE_PROFILE_ARN`, or `BEDROCK_MODEL_ID`
+- If `AI_PROVIDER=bedrock`: optional `BEDROCK_GUARDRAIL_IDENTIFIER` and `BEDROCK_GUARDRAIL_VERSION`
+- If `AI_PROVIDER=anthropic`: `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL`
 
-Bedrock example:
+Recommended Bedrock example:
+
+```dotenv
+AI_PROVIDER=bedrock
+AWS_REGION=us-east-1
+AWS_PROFILE=hybrid-ai-dev
+BEDROCK_INFERENCE_PROFILE_ARN=arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0
+```
+
+Direct model example:
 
 ```dotenv
 AI_PROVIDER=bedrock
@@ -86,6 +90,8 @@ AWS_REGION=us-east-1
 AWS_PROFILE=hybrid-ai-dev
 BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
 ```
+
+Use an inference profile by default for newer Claude models. In live testing for this repo on March 31, 2026, the configured Claude Sonnet 4 target succeeded through `BEDROCK_INFERENCE_PROFILE_ARN` and direct model invocation returned a Bedrock `ValidationException` requiring an inference profile.
 
 Anthropic example:
 
@@ -260,6 +266,7 @@ Normal mode:
 
 - Assistant text is printed to `stdout`
 - Structured logs are printed to `stderr`
+- Third-party AWS SDK logs are suppressed unless you intentionally lower their logger thresholds
 
 Example shape:
 
@@ -308,6 +315,7 @@ With `--json`, the assistant prints a response object like:
 - The account has not been granted access to the Claude model you selected
 - The IAM identity can authenticate to AWS but cannot call Bedrock
 - Bedrock may return access denied or model not found errors
+- Some Claude targets can authenticate successfully but still require invocation through an inference profile instead of a direct model ID
 - Some Claude models require an inference profile instead of direct on-demand model invocation
 - `ThrottlingException: Too many tokens per day` indicates the account or profile hit Bedrock daily token quota
 - If you are using `BEDROCK_INFERENCE_PROFILE_ID`, your AWS identity must also be allowed to invoke the matching inference profile
@@ -324,6 +332,7 @@ With `--json`, the assistant prints a response object like:
 
 - `.env` points at one region while Terraform or your AWS profile uses another
 - The selected model exists in a different region than `AWS_REGION`
+- The inference profile ARN points at a different region or account than the credentials you are using
 
 ### Missing environment variables
 
