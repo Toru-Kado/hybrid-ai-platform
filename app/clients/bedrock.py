@@ -20,16 +20,20 @@ class BedrockRuntimeClient:
         if settings.aws_profile:
             session_kwargs["profile_name"] = settings.aws_profile
 
-        session = boto3.Session(**session_kwargs)
-        self._client = session.client(
-            "bedrock-runtime",
-            region_name=settings.aws_region,
-            config=botocore_config.Config(
-                retries={"max_attempts": 3, "mode": "standard"},
-                connect_timeout=10,
-                read_timeout=120,
-            ),
-        )
+        try:
+            session = boto3.Session(**session_kwargs)
+            self._client = session.client(
+                "bedrock-runtime",
+                region_name=settings.aws_region,
+                config=botocore_config.Config(
+                    retries={"max_attempts": 3, "mode": "standard"},
+                    connect_timeout=10,
+                    read_timeout=120,
+                ),
+            )
+        except handled_exceptions as exc:
+            raise _normalize_bedrock_error(exc) from exc
+
         self._settings = settings
         self._handled_exceptions = handled_exceptions
 
@@ -306,6 +310,13 @@ def _normalize_service_error_message(
             f"runtime target is exhausted. Wait for the quota window to reset, "
             f"lower BEDROCK_MAX_TOKENS, or switch to a different model or "
             f"inference profile."
+        )
+
+    if service_code == "ThrottlingException":
+        return (
+            f"{message} Bedrock can also throttle on requests per minute or tokens "
+            f"per minute. Retry with backoff, reduce concurrency, or lower "
+            f"MODEL_MAX_TOKENS for this workload."
         )
 
     if service_code == "AccessDeniedException":

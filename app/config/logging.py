@@ -60,3 +60,8 @@ def configure_logging(*, level: str, service_name: str, environment: str) -> Non
         JsonFormatter(service_name=service_name, environment=environment)
     )
     root_logger.addHandler(handler)
+
+    # Keep third-party SDK chatter out of normal CLI output unless the user
+    # explicitly turns the application log level down to DEBUG and inspects them separately.
+    for logger_name in ("boto3", "botocore", "urllib3"):
+        logging.getLogger(logger_name).setLevel(logging.WARNING)
