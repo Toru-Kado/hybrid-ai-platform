@@ -20,7 +20,7 @@ Before configuring Kilo Code, you need:
 Minimum checks:
 
 ```bash
-aws sts get-caller-identity --profile Ang-Admin
+aws sts get-caller-identity --profile TK-Admin
 ```
 
 Use the same AWS values that you place in `.env` for the Python app:
@@ -41,7 +41,7 @@ Map the editor configuration to these concepts:
 If Kilo Code inherits shell environment variables, exporting them before launch is the simplest setup:
 
 ```bash
-export AWS_PROFILE=Ang-Admin
+export AWS_PROFILE=TK-Admin
 export AWS_REGION=us-east-1
 ```
 

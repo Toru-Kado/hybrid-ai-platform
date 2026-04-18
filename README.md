@@ -42,7 +42,7 @@ The stack applies these baseline tags:
 If you are using AWS IAM Identity Center, verify the target account before bootstrapping or deploying:
 
 ```bash
-aws sts get-caller-identity --profile Ang-Admin
+aws sts get-caller-identity --profile TK-Admin
 ```
 
 Use the profile that resolves to the same AWS organization segment and account path you are already using for `fooocus-rig`. Do not assume an old `hybrid-ai-dev` account or role still applies.
@@ -68,7 +68,7 @@ Recommended Bedrock example:
 ```dotenv
 AI_PROVIDER=bedrock
 AWS_REGION=us-east-1
-AWS_PROFILE=Ang-Admin
+AWS_PROFILE=TK-Admin
 BEDROCK_INFERENCE_PROFILE_ARN=arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0
 ```
 
@@ -83,7 +83,7 @@ make infra-bootstrap
 Bootstrap the target AWS environment once:
 
 ```bash
-AWS_PROFILE=Ang-Admin AWS_REGION=us-east-1 ./scripts/bootstrap-cdk.sh
+AWS_PROFILE=TK-Admin AWS_REGION=us-east-1 ./scripts/bootstrap-cdk.sh
 ```
 
 The bootstrap script:
@@ -97,7 +97,7 @@ The bootstrap script:
 Deploy the stack with the shared AWS profile and any optional config overrides:
 
 ```bash
-AWS_PROFILE=Ang-Admin AWS_REGION=us-east-1 \
+AWS_PROFILE=TK-Admin AWS_REGION=us-east-1 \
 BEDROCK_FOUNDATION_MODEL_IDS=anthropic.claude-3-5-sonnet-20241022-v2:0 \
 BEDROCK_INFERENCE_PROFILE_ARNS=arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0 \
 OPERATOR_USER_NAME=hybrid-ai-dev \
@@ -128,7 +128,7 @@ Comma-separated values are accepted for the Bedrock allow-lists and trusted prin
 After deploy, use CloudFormation outputs to wire local references:
 
 ```bash
-AWS_PROFILE=Ang-Admin AWS_REGION=us-east-1 \
+AWS_PROFILE=TK-Admin AWS_REGION=us-east-1 \
 aws cloudformation describe-stacks \
   --stack-name HybridAiPlatformBaseline \
   --query "Stacks[0].Outputs"

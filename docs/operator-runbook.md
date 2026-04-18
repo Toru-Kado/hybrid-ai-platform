@@ -25,7 +25,7 @@ You need:
 If you are using AWS IAM Identity Center:
 
 - use the profile that resolves to the intended Toru Kadu account
-- verify the active account with `aws sts get-caller-identity --profile Ang-Admin`
+- verify the active account with `aws sts get-caller-identity --profile TK-Admin`
 
 ## First-Time Local Setup
 
@@ -39,7 +39,7 @@ make infra-bootstrap
 If the AWS environment has not been bootstrapped for CDK yet:
 
 ```bash
-AWS_PROFILE=Ang-Admin AWS_REGION=us-east-1 ./scripts/bootstrap-cdk.sh
+AWS_PROFILE=TK-Admin AWS_REGION=us-east-1 ./scripts/bootstrap-cdk.sh
 ```
 
 ## Deploy The Baseline
@@ -47,7 +47,7 @@ AWS_PROFILE=Ang-Admin AWS_REGION=us-east-1 ./scripts/bootstrap-cdk.sh
 From the repo root:
 
 ```bash
-AWS_PROFILE=Ang-Admin AWS_REGION=us-east-1 ./scripts/deploy-baseline.sh
+AWS_PROFILE=TK-Admin AWS_REGION=us-east-1 ./scripts/deploy-baseline.sh
 ```
 
 Optional deploy-time controls are supplied through environment variables such as:
@@ -64,7 +64,7 @@ Optional deploy-time controls are supplied through environment variables such as
 Inspect the deployed stack outputs:
 
 ```bash
-AWS_PROFILE=Ang-Admin AWS_REGION=us-east-1 \
+AWS_PROFILE=TK-Admin AWS_REGION=us-east-1 \
 aws cloudformation describe-stacks \
   --stack-name HybridAiPlatformBaseline \
   --query "Stacks[0].Outputs"

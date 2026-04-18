@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INFRA_DIR="${ROOT_DIR}/infra"
 
-AWS_PROFILE="${AWS_PROFILE:-Ang-Admin}"
+AWS_PROFILE="${AWS_PROFILE:-TK-Admin}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
 ACCOUNT_ID="$(
   aws sts get-caller-identity \
