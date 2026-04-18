@@ -5,8 +5,11 @@ PYTHON_BIN := $(VENV)/bin/python
 INFRA_VENV ?= infra/.venv
 INFRA_PIP := $(INFRA_VENV)/bin/pip
 INFRA_PYTHON := $(INFRA_VENV)/bin/python
+JSII_RUNTIME_PACKAGE_CACHE_ROOT ?= $(CURDIR)/.cache/jsii
 
-.PHONY: bootstrap install run example compile test verify infra-bootstrap infra-test cdk-bootstrap cdk-synth cdk-diff cdk-deploy tree
+export JSII_RUNTIME_PACKAGE_CACHE_ROOT
+
+.PHONY: bootstrap install run example compile test verify infra-bootstrap infra-test cdk-bootstrap cdk-synth cdk-diff cdk-deploy smoke smoke-local smoke-bedrock smoke-stack smoke-deploy tree
 
 bootstrap:
 	$(PYTHON) -m venv $(VENV)
@@ -37,6 +40,19 @@ infra-bootstrap:
 
 infra-test:
 	cd infra && .venv/bin/python -m pytest tests
+
+smoke: smoke-local
+
+smoke-local: verify infra-test cdk-synth
+
+smoke-bedrock:
+	$(PYTHON_BIN) scripts/smoke.py bedrock --env-file .env
+
+smoke-stack:
+	$(PYTHON_BIN) scripts/smoke.py stack --env-file .env
+
+smoke-deploy:
+	$(PYTHON_BIN) scripts/smoke.py deploy --env-file .env
 
 cdk-bootstrap:
 	./scripts/bootstrap-cdk.sh

@@ -72,6 +72,18 @@ aws cloudformation describe-stacks \
 
 Use those outputs to populate local references in `.env`.
 
+## Smoke Checks
+
+Use the smoke targets to separate local validation from live AWS validation:
+
+```bash
+make smoke
+make smoke-bedrock
+make smoke-stack
+```
+
+Use `make smoke` before opening a PR. Use `make smoke-bedrock` after changing local Bedrock auth or model targeting. Use `make smoke-stack` after a deploy when you need to confirm the baseline bucket, log group, and IAM roles exist in the target account.
+
 ## Diff Or Re-Synth
 
 ```bash

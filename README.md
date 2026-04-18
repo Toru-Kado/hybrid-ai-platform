@@ -167,6 +167,21 @@ make cdk-diff
 make cdk-deploy
 ```
 
+Smoke checks:
+
+```bash
+make smoke
+make smoke-bedrock
+make smoke-stack
+```
+
+Smoke target intent:
+
+- `make smoke`: local static smoke for app tests, infra tests, and `cdk synth`
+- `make smoke-bedrock`: live Bedrock invoke smoke using `.env`
+- `make smoke-stack`: deployed stack verification against CloudFormation, S3, CloudWatch Logs, and IAM
+- `make smoke-deploy`: deploy then run `make smoke-stack`
+
 ## Dev Strategy
 
 This repo should use a `dev`-first Git strategy instead of treating ad hoc feature branches as the default working model.
@@ -198,6 +213,7 @@ If a topic branch is useful for a risky or isolated change, branch from `dev` an
 - The Python assistant remains intentionally small; the CDK stack is the durable account baseline around it.
 - Bedrock is the operating runtime for this repo.
 - The Git integration branch should be `dev`.
+- GitHub Actions now runs `make smoke` on `dev`, `main`, and pull requests. Manual workflow dispatch can also run live AWS smoke checks when the repo has the required AWS role and smoke variables configured.
 
 ## Related Docs
 
