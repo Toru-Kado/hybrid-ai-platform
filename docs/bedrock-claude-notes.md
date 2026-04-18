@@ -2,13 +2,13 @@
 
 ## Runtime Choice
 
-This starter assumes Anthropic Claude on Amazon Bedrock is the primary model runtime.
+This repo keeps Anthropic Claude on Amazon Bedrock as the primary model runtime.
 
-That choice fits the repository goals:
+That still fits the platform goals:
 
-- Cloud-hosted inference instead of local model execution
-- Straightforward IAM-based access control
-- A clean path from local development to shared AWS-hosted workloads
+- cloud-hosted inference instead of local model execution
+- IAM-based access control and AWS-native observability
+- a clean path from local workflows to hosted workloads later
 
 ## API Choice
 
@@ -16,90 +16,83 @@ The Python app uses the Bedrock Converse API through `boto3`.
 
 Why:
 
-- It maps cleanly to chat-style prompts
-- It avoids model-specific HTTP request shaping in the application
-- It makes future conversation state handling easier
+- it maps cleanly to chat-style prompts
+- it avoids model-specific HTTP shaping inside the app
+- it leaves room for conversation state and guardrail expansion later
 
 ## Model Selection Guidance
 
-- Use a Claude model that is already enabled in your AWS account and region
-- Keep the model ID in `.env` so swapping models does not require code changes
-- Prefer `BEDROCK_INFERENCE_PROFILE_ID` or `BEDROCK_INFERENCE_PROFILE_ARN` for newer Claude models and cross-region inference
-- Use `BEDROCK_MODEL_ID` only when direct invocation is supported for that target in your account and region
-- Do not put an ARN into `BEDROCK_MODEL_ID`; keep that variable as a plain Bedrock model ID
+- use a Claude target that is enabled in the active AWS account and region
+- prefer `BEDROCK_INFERENCE_PROFILE_ID` or `BEDROCK_INFERENCE_PROFILE_ARN` for newer Claude models
+- use `BEDROCK_MODEL_ID` only when direct invocation is supported in the target account
+- keep ARNs out of `BEDROCK_MODEL_ID`
 
 Observed in live testing for this repository on March 31, 2026:
 
 - `BEDROCK_INFERENCE_PROFILE_ARN` worked for the configured Claude Sonnet 4 target
-- clearing the inference profile and invoking the direct model ID returned a Bedrock `ValidationException` requiring an inference profile
+- direct model invocation returned a Bedrock `ValidationException` when that target required an inference profile
 
 ## Guardrail Attachment Model
 
-This starter treats Bedrock guardrails as optional and attachable per flow.
+This repo treats Bedrock guardrails as optional and attachable per flow.
 
 - `BEDROCK_GUARDRAIL_MODE=off`
-  The app omits `guardrailConfig` completely.
+  The app omits `guardrailConfig`.
 - `BEDROCK_GUARDRAIL_MODE=user`
-  The app attaches `guardrailConfig` and wraps only the user prompt in `guardContent`.
+  The app guards only the user prompt.
 - `BEDROCK_GUARDRAIL_MODE=all`
-  The app attaches `guardrailConfig` and wraps both the user prompt and the system prompt in `guardContent`.
-
-That makes it easy to keep internal orchestration prompts less constrained while applying Bedrock guardrails to user-facing prompts.
+  The app guards both the user prompt and the system prompt.
 
 ## Configuration Variables
 
 - `AWS_REGION`: region for the Bedrock runtime client
 - `AWS_PROFILE`: local AWS profile for development
 - `BEDROCK_MODEL_ID`: direct model identifier
-- `BEDROCK_INFERENCE_PROFILE_ID`: optional inference profile identifier
-- `BEDROCK_INFERENCE_PROFILE_ARN`: optional override for inference profile usage
+- `BEDROCK_INFERENCE_PROFILE_ID`: inference profile selector
+- `BEDROCK_INFERENCE_PROFILE_ARN`: inference profile ARN override
 - `MODEL_MAX_TOKENS`: default token budget
 - `MODEL_TEMPERATURE`: default generation temperature
 - `ASSISTANT_SYSTEM_PROMPT`: baseline system behavior
 
 ## Permission Notes
 
-For the local CLI, your active AWS identity needs:
+For the local CLI, the active AWS identity needs:
 
 - `bedrock:InvokeModel`
 - `bedrock:InvokeModelWithResponseStream`
-- access to the exact resource you invoke, which means:
-- the selected foundation model ID if you call Bedrock directly
-- the selected inference profile ID or ARN if you use an inference profile selector
-- `bedrock:ApplyGuardrail` on the selected guardrail ARN if you use Bedrock guardrails
+- access to the exact model or inference profile being invoked
+- `bedrock:ApplyGuardrail` on the selected guardrail ARN when guardrails are enabled
 
-The Terraform-created IAM role is intended for future AWS-hosted workloads. It also includes:
+The CDK-created runtime role is intended for future AWS-hosted workloads. It also includes:
 
-- S3 access for future prompt and artifact storage
-- CloudWatch Logs write access for future hosted execution paths
+- S3 access for AI assets
+- CloudWatch Logs write access for assistant logs
 
-The local CLI does not automatically assume that role.
+The optional operator role mirrors those permissions for a named IAM user and can also receive extra quota and observability read access.
 
-If you use an inference profile:
+To scope those IAM policies during deploy, set:
 
-- set `BEDROCK_INFERENCE_PROFILE_ID` or `BEDROCK_INFERENCE_PROFILE_ARN` in `.env`
-- add that same ARN to `bedrock_allowed_inference_profile_arns` in `infra/environments/dev/terraform.tfvars`
-- make sure your local AWS user or profile can invoke that profile as well
+- `BEDROCK_FOUNDATION_MODEL_IDS`
+- `BEDROCK_INFERENCE_PROFILE_ARNS`
+- `BEDROCK_GUARDRAIL_ARNS`
+- `RUNTIME_TRUSTED_PRINCIPAL_ARNS`
+- `OPERATOR_USER_NAME`
 
-The runtime logs and JSON output use `target_id`, `target_kind`, and `target_source`
-so it is obvious whether a request went to a direct model ID or an inference profile.
+If the allow-lists are left empty, the runtime and operator roles default to Bedrock invoke access on `*`. Tighten those lists once the target models and inference profiles are stable.
 
-If you use a Bedrock guardrail:
+## Account Notes
 
-- set `BEDROCK_GUARDRAIL_IDENTIFIER` and `BEDROCK_GUARDRAIL_VERSION` in `.env`
-- set `BEDROCK_GUARDRAIL_MODE` to `user` or `all`
-- add the guardrail ARN to `bedrock_allowed_guardrail_arns` in `infra/environments/dev/terraform.tfvars`
-- make sure your local AWS user or profile can call `bedrock:ApplyGuardrail` on that ARN
+This repo no longer assumes the original Terraform-era AWS account path.
 
-## Latency and Cost Notes
+Before testing Bedrock access:
 
-- Latency will be dominated by the Bedrock round trip, not local CPU
-- The Intel Mac is adequate because orchestration cost is low
-- Token and model selection choices drive cost much more than local hardware in this design
+1. authenticate the AWS CLI to the intended Toru Kadu account
+2. verify the active account with `aws sts get-caller-identity --profile <profile>`
+3. confirm the model or inference profile is enabled in that account and region
 
-## Good First Enhancements
+## Good Next Enhancements
 
-- Persist prompts and outputs to S3
-- Add streaming responses
-- Add conversation history support
-- Introduce Bedrock Guardrails when the assistant starts handling sensitive workflows
+- persist prompts and outputs to S3
+- add streaming responses
+- add conversation history support
+- add explicit guardrail allow-lists once the production targets settle

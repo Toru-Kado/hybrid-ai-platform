@@ -1,367 +1,208 @@
 # Hybrid AI Platform
 
-Starter repository for a hybrid AI development setup with:
+Hybrid AI starter for:
 
-- Intel Core i9 MacBook Pro for local development
-- AWS for infrastructure
-- Anthropic Claude through Amazon Bedrock or the direct Anthropic API
-- Terraform for cloud resources
-- Python 3.12 for a small assistant CLI
+- local Python-based assistant workflows
+- Amazon Bedrock as the primary model runtime
+- AWS CDK as the infrastructure baseline
+- the Toru Kadu segment of the Angelica Technologies AWS organization
 
-This repo is intentionally small. The laptop is for development and orchestration. The runtime can be Bedrock or Anthropic directly.
+This repo has been reset away from Terraform. The IaC source of truth is now the CDK app under [infra](/Users/nathanmalitz/Code/hybrid-ai-platform/infra), and deploys should target the same AWS org/account path already being used in `fooocus-rig`.
 
-## What This Repo Creates
+## What This Repo Contains
 
-- [app](/Users/nathanmalitz/Code/hybrid-ai-platform/app): Python CLI that sends prompts to Claude through the selected provider
-- [infra](/Users/nathanmalitz/Code/hybrid-ai-platform/infra): Terraform for an S3 bucket, CloudWatch log group, and IAM runtime role
-- [docs](/Users/nathanmalitz/Code/hybrid-ai-platform/docs): architecture notes and setup guidance
+- [app](/Users/nathanmalitz/Code/hybrid-ai-platform/app): Python CLI for prompting Claude through Amazon Bedrock
+- [infra](/Users/nathanmalitz/Code/hybrid-ai-platform/infra): Python AWS CDK app for the shared AWS baseline
+- [scripts](/Users/nathanmalitz/Code/hybrid-ai-platform/scripts): local helpers for CDK bootstrap and deploy
+- [docs](/Users/nathanmalitz/Code/hybrid-ai-platform/docs): architecture, Bedrock notes, and operator guidance
+
+## Infrastructure Baseline
+
+The CDK stack currently provisions:
+
+- an encrypted S3 bucket for prompts, datasets, exports, and generated assets
+- a CloudWatch log group for assistant workloads
+- an IAM runtime role for future Bedrock-powered hosted execution
+- an optional IAM operator role for local development access
+
+The stack applies these baseline tags:
+
+- `Company=Angelica Technologies`
+- `Project=hybrid-ai-platform`
+- `ManagedBy=aws-cdk`
+- `OrganizationSegment=toru-kadu`
 
 ## Prerequisites
 
 - Python `3.12`
-- Terraform `>= 1.7`
 - AWS CLI v2
-- One of:
-- An AWS account with Bedrock access in your chosen region
-- An Anthropic API key
+- Node.js plus the AWS CDK CLI (`cdk`)
+- an AWS profile that resolves to the intended Toru Kadu account
 
-## Step-By-Step Setup
-
-### 1. Configure local AWS access
-
-Skip this step if you plan to run with `AI_PROVIDER=anthropic`.
-
-Create a profile and verify it:
+If you are using AWS IAM Identity Center, verify the target account before bootstrapping or deploying:
 
 ```bash
-aws configure --profile hybrid-ai-dev
-aws sts get-caller-identity --profile hybrid-ai-dev
+aws sts get-caller-identity --profile Ang-Admin
 ```
 
-Use a region where Bedrock and your Claude model are enabled.
+Use the profile that resolves to the same AWS organization segment and account path you are already using for `fooocus-rig`. Do not assume an old `hybrid-ai-dev` account or role still applies.
 
-If you want a thinner IAM user, create a separate operator role in Terraform and let
-your local user assume it. The runtime role in this repo stays separate.
+## Local App Setup
 
-With the optional operator role enabled, a common profile split looks like:
-
-```ini
-[profile hybrid-ai-bootstrap]
-region = us-east-1
-
-[profile hybrid-ai-dev]
-region = us-east-1
-source_profile = hybrid-ai-bootstrap
-role_arn = arn:aws:iam::929924811789:role/HybridAIDevOperatorRole
-```
-
-In that setup:
-
-- `hybrid-ai-bootstrap` is the thin IAM user profile
-- `hybrid-ai-dev` is the assumed role profile you use in `.env` and Terraform
-
-### 2. Create local app configuration
+Create the app environment and install the Python package:
 
 ```bash
+make bootstrap
 cp .env.example .env
 ```
 
-Edit `.env` and set at least:
+Edit `.env` and keep the runtime on Bedrock:
 
-- `AI_PROVIDER`
-- If `AI_PROVIDER=bedrock`: `AWS_REGION`, `AWS_PROFILE`, and one of `BEDROCK_INFERENCE_PROFILE_ID`, `BEDROCK_INFERENCE_PROFILE_ARN`, or `BEDROCK_MODEL_ID`
-- If `AI_PROVIDER=bedrock`: optional `BEDROCK_GUARDRAIL_IDENTIFIER` and `BEDROCK_GUARDRAIL_VERSION`
-- If `AI_PROVIDER=anthropic`: `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL`
+- `AI_PROVIDER=bedrock`
+- `AWS_PROFILE`
+- `AWS_REGION`
+- one of `BEDROCK_INFERENCE_PROFILE_ID`, `BEDROCK_INFERENCE_PROFILE_ARN`, or `BEDROCK_MODEL_ID`
 
 Recommended Bedrock example:
 
 ```dotenv
 AI_PROVIDER=bedrock
 AWS_REGION=us-east-1
-AWS_PROFILE=hybrid-ai-dev
+AWS_PROFILE=Ang-Admin
 BEDROCK_INFERENCE_PROFILE_ARN=arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0
 ```
 
-Direct model example:
+## CDK Setup
 
-```dotenv
-AI_PROVIDER=bedrock
-AWS_REGION=us-east-1
-AWS_PROFILE=hybrid-ai-dev
-BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
-```
-
-Use an inference profile by default for newer Claude models. In live testing for this repo on March 31, 2026, the configured Claude Sonnet 4 target succeeded through `BEDROCK_INFERENCE_PROFILE_ARN` and direct model invocation returned a Bedrock `ValidationException` requiring an inference profile.
-
-Anthropic example:
-
-```dotenv
-AI_PROVIDER=anthropic
-ANTHROPIC_API_KEY=your-key-here
-ANTHROPIC_MODEL=claude-sonnet-4-5
-```
-
-### 3. Install the Python app
+Create the infra virtualenv and install CDK libraries:
 
 ```bash
-python3.12 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -e .
+make infra-bootstrap
 ```
 
-Equivalent shortcut:
+Bootstrap the target AWS environment once:
 
 ```bash
-make bootstrap
+AWS_PROFILE=Ang-Admin AWS_REGION=us-east-1 ./scripts/bootstrap-cdk.sh
 ```
 
-### 4. Create the AWS baseline with Terraform
+The bootstrap script:
 
-Copy the example tfvars file:
+- resolves the active account with `aws sts get-caller-identity`
+- installs `infra/requirements.txt` into `infra/.venv`
+- runs `cdk bootstrap` against that account and region
+
+## Deploy The Baseline
+
+Deploy the stack with the shared AWS profile and any optional config overrides:
 
 ```bash
-cp infra/environments/dev/terraform.tfvars.example infra/environments/dev/terraform.tfvars
+AWS_PROFILE=Ang-Admin AWS_REGION=us-east-1 \
+BEDROCK_FOUNDATION_MODEL_IDS=anthropic.claude-3-5-sonnet-20241022-v2:0 \
+BEDROCK_INFERENCE_PROFILE_ARNS=arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0 \
+OPERATOR_USER_NAME=hybrid-ai-dev \
+./scripts/deploy-baseline.sh
 ```
 
-Review these values before apply:
+Useful deployment-time environment variables:
 
-- `aws_region`
-- `aws_profile`
-- `bedrock_allowed_model_ids`
-- `bedrock_allowed_inference_profile_arns`
-- `bedrock_allowed_guardrail_arns`
-- `runtime_role_trusted_principal_arns`
-- `operator_user_name`
-- `ai_assets_bucket_force_destroy`
+- `PROJECT_NAME`
+- `ENVIRONMENT_NAME`
+- `COMPANY_NAME`
+- `ORGANIZATION_SEGMENT`
+- `ASSETS_BUCKET_NAME_OVERRIDE`
+- `ASSETS_BUCKET_FORCE_DESTROY`
+- `LOG_RETENTION_DAYS`
+- `BEDROCK_FOUNDATION_MODEL_IDS`
+- `BEDROCK_INFERENCE_PROFILE_ARNS`
+- `BEDROCK_GUARDRAIL_ARNS`
+- `RUNTIME_TRUSTED_PRINCIPAL_ARNS`
+- `OPERATOR_USER_NAME`
+- `OPERATOR_ROLE_NAME_OVERRIDE`
+- `OPERATOR_ROLE_ENABLE_OBSERVABILITY_ACCESS`
 
-Then run Terraform:
+Comma-separated values are accepted for the Bedrock allow-lists and trusted principal ARNs.
+
+## Copy Stack Outputs Into `.env`
+
+After deploy, use CloudFormation outputs to wire local references:
 
 ```bash
-make terraform-init
-make terraform-plan
-make terraform-apply
+AWS_PROFILE=Ang-Admin AWS_REGION=us-east-1 \
+aws cloudformation describe-stacks \
+  --stack-name HybridAiPlatformBaseline \
+  --query "Stacks[0].Outputs"
 ```
 
-Terraform creates:
+Typical mappings:
 
-- An encrypted S3 bucket for prompts, datasets, and generated artifacts
-- A CloudWatch log group for assistant-related workloads
-- An IAM role for future Bedrock-powered AWS runtimes
-- Optional: a separate IAM operator role for local development, plus a small inline
-  policy on an existing IAM user that allows `sts:AssumeRole`
+- `AiAssetsBucketName` -> `AI_ASSETS_BUCKET_NAME`
+- `AssistantLogGroupName` -> `ASSISTANT_LOG_GROUP_NAME`
+- `AwsRegion` -> `AWS_REGION`
 
-If you plan to use Bedrock guardrails, add the target guardrail ARN to
-`bedrock_allowed_guardrail_arns`.
+If you enabled the operator role, its outputs are:
 
-If you set `operator_user_name`, Terraform does not create that IAM user for you.
-It assumes the user already exists, then grants that user permission to assume the
-new operator role. This keeps local operator access separate from the runtime role.
+- `DeveloperOperatorRoleArn`
+- `DeveloperOperatorRoleName`
 
-### 5. Copy useful Terraform outputs into `.env`
+## Daily Workflow
 
-Get outputs:
+Local assistant:
 
 ```bash
-terraform -chdir=infra/environments/dev output
+python -m app --prompt "Summarize the purpose of this hybrid AI platform."
 ```
 
-Copy these values into `.env` if you want local references to the provisioned resources:
-
-- `ai_assets_bucket_name` -> `AI_ASSETS_BUCKET_NAME`
-- `assistant_log_group_name` -> `ASSISTANT_LOG_GROUP_NAME`
-- `aws_region` -> `AWS_REGION`
-
-The local CLI uses your active AWS credentials directly. It does not automatically assume the Terraform-created IAM role.
-
-If your AWS profile already assumes the Terraform-created operator role, the CLI will
-use that role automatically through the standard AWS SDK profile chain.
-
-## First Run
-
-Check the CLI wiring first:
+Infra validation:
 
 ```bash
-python -m app --help
+make infra-test
+make cdk-synth
 ```
 
-Then send a prompt:
+Diff or redeploy:
 
 ```bash
-python -m app --prompt "Summarize why this repo uses Bedrock instead of local model inference."
+make cdk-diff
+make cdk-deploy
 ```
 
-Direct Anthropic example:
+## Dev Strategy
+
+This repo should use a `dev`-first Git strategy instead of treating ad hoc feature branches as the default working model.
+
+The intended branch roles are:
+
+- `main`: promoted, stable branch
+- `dev`: active integration branch for ongoing platform work
+- short-lived topic branches: optional, only when a change needs isolation before merging back into `dev`
+
+The operating rule is:
+
+1. land active development into `dev`
+2. validate on `dev`
+3. promote `dev` into `main` when the baseline is ready
+
+For day-to-day work, prefer:
 
 ```bash
-AI_PROVIDER=anthropic python -m app --prompt "Summarize why this repo keeps a direct Anthropic fallback."
+git switch dev
+git pull origin dev
 ```
 
-Or, after install:
+If a topic branch is useful for a risky or isolated change, branch from `dev` and merge back into `dev`, not directly into `main`.
 
-```bash
-hybrid-assistant --prompt "List two extension ideas for this starter."
-```
+## Repository Notes
 
-## Optional Bedrock Guardrails
+- Existing Terraform state or module history in older clones should be treated as legacy material, not a deploy path.
+- The Python assistant remains intentionally small; the CDK stack is the durable account baseline around it.
+- Bedrock is the operating runtime for this repo.
+- The Git integration branch should be `dev`.
 
-Bedrock guardrails are optional in this starter.
+## Related Docs
 
-- If you leave `BEDROCK_GUARDRAIL_IDENTIFIER` and `BEDROCK_GUARDRAIL_VERSION` empty, the app sends plain `Converse` requests with no `guardrailConfig`.
-- If you set them, the app can attach guardrails selectively.
-
-`BEDROCK_GUARDRAIL_MODE` supports:
-
-- `off`
-  Omit Bedrock guardrails completely.
-- `user`
-  Attach Bedrock guardrails and assess only the user prompt.
-- `all`
-  Attach Bedrock guardrails and assess both the user prompt and the system prompt.
-
-You can override this per run:
-
-```bash
-python -m app --guardrails user --prompt "Review this customer-facing response."
-python -m app --guardrails off --prompt "Summarize these internal architecture notes."
-```
-
-When `AI_PROVIDER=bedrock`, this gives you a simple layered model:
-
-- custom application logic
-- optional Bedrock guardrails
-- model-level safety defaults
-
-## Example Commands
-
-Basic prompt:
-
-```bash
-python -m app --prompt "Explain the purpose of the S3 bucket in this repo."
-```
-
-Custom system prompt:
-
-```bash
-python -m app \
-  --system "You are a senior cloud architect." \
-  --prompt "Propose the next two improvements for this platform."
-```
-
-JSON output:
-
-```bash
-python -m app --prompt "List three common runtime setup mistakes." --json
-```
-
-Prompt from stdin:
-
-```bash
-echo "Describe the role of CloudWatch in this repo." | python -m app
-```
-
-## Expected Output
-
-Normal mode:
-
-- Assistant text is printed to `stdout`
-- Structured logs are printed to `stderr`
-- Third-party AWS SDK logs are suppressed unless you intentionally lower their logger thresholds
-
-Example shape:
-
-```text
-This repository keeps local development lightweight and pushes model inference to Amazon Bedrock.
-```
-
-JSON log example:
-
-```json
-{"timestamp":"2026-03-27T00:00:00+00:00","level":"INFO","logger":"app.services.chat","message":"Model prompt completed","service":"hybrid-ai-assistant","environment":"dev","provider":"bedrock","aws_region":"us-east-1","target_id":"us.anthropic.claude-opus-4-6-v1","target_kind":"inference_profile","target_source":"BEDROCK_INFERENCE_PROFILE_ID","guardrail_mode":"user","guardrail_identifier":"gr-abc123","guardrail_applied":true,"guardrail_intervened":false,"request_id":"...","latency_ms":1234}
-```
-
-With `--json`, the assistant prints a response object like:
-
-```json
-{
-  "response_text": "...",
-  "provider": "bedrock",
-  "target_id": "...",
-  "target_kind": "inference_profile",
-  "target_source": "BEDROCK_INFERENCE_PROFILE_ID",
-  "guardrail_mode": "user",
-  "guardrail_identifier": "gr-abc123",
-  "guardrail_applied": true,
-  "guardrail_intervened": false,
-  "stop_reason": "...",
-  "service_tier": "...",
-  "input_tokens": 123,
-  "output_tokens": 456,
-  "request_id": "...",
-  "latency_ms": 1234
-}
-```
-
-## Common Failure Points
-
-### AWS credential issues
-
-- `AWS_PROFILE` points to a profile that does not exist
-- AWS CLI credentials are expired or missing
-- You can diagnose this with `aws sts get-caller-identity --profile <profile>`
-
-### Bedrock access not enabled
-
-- The account has not been granted access to the Claude model you selected
-- The IAM identity can authenticate to AWS but cannot call Bedrock
-- Bedrock may return access denied or model not found errors
-- Some Claude targets can authenticate successfully but still require invocation through an inference profile instead of a direct model ID
-- Some Claude models require an inference profile instead of direct on-demand model invocation
-- `ThrottlingException: Too many tokens per day` indicates the account or profile hit Bedrock daily token quota
-- If you are using `BEDROCK_INFERENCE_PROFILE_ID`, your AWS identity must also be allowed to invoke the matching inference profile
-- If you are using `BEDROCK_INFERENCE_PROFILE_ARN`, your AWS identity must also be allowed to invoke that exact inference profile ARN
-- If you are using Bedrock guardrails, your AWS identity must also be allowed to apply the exact guardrail ARN
-
-### Anthropic API issues
-
-- `ANTHROPIC_API_KEY` is missing or invalid
-- The selected `ANTHROPIC_MODEL` is not available to the account
-- Anthropic may return rate-limit errors independently of AWS
-
-### Region mismatch
-
-- `.env` points at one region while Terraform or your AWS profile uses another
-- The selected model exists in a different region than `AWS_REGION`
-- The inference profile ARN points at a different region or account than the credentials you are using
-
-### Missing environment variables
-
-- `AI_PROVIDER` must be `bedrock` or `anthropic`
-- `AWS_REGION` is required for `AI_PROVIDER=bedrock`
-- `BEDROCK_MODEL_ID`, `BEDROCK_INFERENCE_PROFILE_ID`, or `BEDROCK_INFERENCE_PROFILE_ARN` is required for `AI_PROVIDER=bedrock`
-- `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` are required for `AI_PROVIDER=anthropic`
-- `BEDROCK_MODEL_ID` must be a plain model ID, not an ARN
-- `BEDROCK_INFERENCE_PROFILE_ID` must be a profile ID, not an ARN
-- Set only one of `BEDROCK_INFERENCE_PROFILE_ID` or `BEDROCK_INFERENCE_PROFILE_ARN`
-- If you set one of `BEDROCK_GUARDRAIL_IDENTIFIER` or `BEDROCK_GUARDRAIL_VERSION`, set both
-- `BEDROCK_GUARDRAIL_MODE` must be one of `off`, `user`, or `all`
-- Invalid `LOG_LEVEL`, `MODEL_MAX_TOKENS`, or `MODEL_TEMPERATURE` values fail fast during startup
-
-## How The Pieces Fit Together
-
-- `infra/` creates the AWS baseline resources
-- `app/` reads `.env`, then calls Bedrock through `boto3` or Anthropic through direct HTTPS
-- `docs/` explains the operating model and local tool assumptions
-
-Useful references:
-
-- [architecture.md](/Users/nathanmalitz/Code/hybrid-ai-platform/docs/architecture.md)
-- [bedrock-claude-notes.md](/Users/nathanmalitz/Code/hybrid-ai-platform/docs/bedrock-claude-notes.md)
-- [kilo-code-setup.md](/Users/nathanmalitz/Code/hybrid-ai-platform/docs/kilo-code-setup.md)
-
-## Future Extensions
-
-- Persist prompts and results to S3
-- Add streaming responses
-- Add a small API layer on top of `app/services`
-- Add CI checks for Python and Terraform
+- [docs/architecture.md](/Users/nathanmalitz/Code/hybrid-ai-platform/docs/architecture.md)
+- [docs/bedrock-claude-notes.md](/Users/nathanmalitz/Code/hybrid-ai-platform/docs/bedrock-claude-notes.md)
+- [docs/kilo-code-setup.md](/Users/nathanmalitz/Code/hybrid-ai-platform/docs/kilo-code-setup.md)
+- [docs/dev-strategy.md](/Users/nathanmalitz/Code/hybrid-ai-platform/docs/dev-strategy.md)
+- [docs/operator-runbook.md](/Users/nathanmalitz/Code/hybrid-ai-platform/docs/operator-runbook.md)

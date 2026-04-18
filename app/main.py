@@ -13,7 +13,7 @@ from app.services.chat import ChatService
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="CLI assistant for invoking Anthropic Claude through Amazon Bedrock or Anthropic directly."
+        description="CLI assistant for invoking Anthropic Claude through Amazon Bedrock."
     )
     parser.add_argument(
         "--prompt",
