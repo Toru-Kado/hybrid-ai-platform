@@ -8,17 +8,9 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+cdk.out/
 dist/
 build/
 *.egg-info/
 
-.terraform/
-*.tfstate
-*.tfstate.*
-crash.log
-override.tf
-override.tf.json
-*_override.tf
-*_override.tf.json
-.terraform.lock.hcl
-infra/environments/dev/terraform.tfvars
+infra/.venv/
