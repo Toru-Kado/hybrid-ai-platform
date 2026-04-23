@@ -39,10 +39,11 @@ jobs:
         run: make smoke
 
   live-bedrock-smoke:
-    if: ${{ github.event_name == 'workflow_dispatch' && secrets.AWS_ROLE_TO_ASSUME != '' && vars.SMOKE_BEDROCK_INFERENCE_PROFILE_ARN != '' }}
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     needs: local-smoke
     runs-on: ubuntu-latest
     env:
+      AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
       SMOKE_AWS_REGION: ${{ vars.SMOKE_AWS_REGION }}
       SMOKE_BEDROCK_INFERENCE_PROFILE_ARN: ${{ vars.SMOKE_BEDROCK_INFERENCE_PROFILE_ARN }}
     steps:
@@ -55,13 +56,19 @@ jobs:
       - name: Install app dependencies
         run: make bootstrap
 
+      - name: Skip live Bedrock smoke check
+        if: ${{ env.AWS_ROLE_TO_ASSUME == '' || env.SMOKE_BEDROCK_INFERENCE_PROFILE_ARN == '' }}
+        run: echo "Skipping live Bedrock smoke check because AWS_ROLE_TO_ASSUME or SMOKE_BEDROCK_INFERENCE_PROFILE_ARN is not configured."
+
       - name: Configure AWS credentials
+        if: ${{ env.AWS_ROLE_TO_ASSUME != '' && env.SMOKE_BEDROCK_INFERENCE_PROFILE_ARN != '' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.SMOKE_AWS_REGION != '' && env.SMOKE_AWS_REGION || 'us-east-1' }}
 
       - name: Write smoke env file
+        if: ${{ env.AWS_ROLE_TO_ASSUME != '' && env.SMOKE_BEDROCK_INFERENCE_PROFILE_ARN != '' }}
         run: |
           cat > .env.ci <<EOF
           AI_PROVIDER=bedrock
@@ -73,13 +80,15 @@ jobs:
           EOF
 
       - name: Run live Bedrock smoke check
+        if: ${{ env.AWS_ROLE_TO_ASSUME != '' && env.SMOKE_BEDROCK_INFERENCE_PROFILE_ARN != '' }}
         run: .venv/bin/python scripts/smoke.py bedrock --env-file .env.ci
 
   deployed-stack-smoke:
-    if: ${{ github.event_name == 'workflow_dispatch' && secrets.AWS_ROLE_TO_ASSUME != '' }}
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     needs: local-smoke
     runs-on: ubuntu-latest
     env:
+      AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
       SMOKE_AWS_REGION: ${{ vars.SMOKE_AWS_REGION }}
       SMOKE_STACK_NAME: ${{ vars.SMOKE_STACK_NAME }}
     steps:
@@ -92,11 +101,17 @@ jobs:
       - name: Install app dependencies
         run: make bootstrap
 
+      - name: Skip deployed stack smoke check
+        if: ${{ env.AWS_ROLE_TO_ASSUME == '' }}
+        run: echo "Skipping deployed stack smoke check because AWS_ROLE_TO_ASSUME is not configured."
+
       - name: Configure AWS credentials
+        if: ${{ env.AWS_ROLE_TO_ASSUME != '' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ env.SMOKE_AWS_REGION != '' && env.SMOKE_AWS_REGION || 'us-east-1' }}
 
       - name: Run deployed stack smoke check
+        if: ${{ env.AWS_ROLE_TO_ASSUME != '' }}
         run: .venv/bin/python scripts/smoke.py stack --aws-region "${SMOKE_AWS_REGION:-us-east-1}" --stack-name "${SMOKE_STACK_NAME:-HybridAiPlatformBaseline}"
