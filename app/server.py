@@ -6,11 +6,14 @@ import logging
 from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from app.clients import AssistantClientError, create_runtime_client
 from app.config.logging import configure_logging
 from app.config.settings import GuardrailSettings, Settings, SettingsError
+from app.session_store import SessionStore
 from app.services.chat import ChatService
 
 logger = logging.getLogger(__name__)
@@ -23,6 +26,7 @@ class ServerState:
     settings: Settings
     service: ChatService
     default_guardrails: GuardrailSettings | None
+    session_store: SessionStore
 
 
 class AssistantApiHandler(BaseHTTPRequestHandler):
@@ -32,7 +36,8 @@ class AssistantApiHandler(BaseHTTPRequestHandler):
         self._send_empty(HTTPStatus.NO_CONTENT)
 
     def do_GET(self) -> None:
-        if self.path == "/api/health":
+        path = self._request_path()
+        if path == "/api/health":
             self._send_json(
                 HTTPStatus.OK,
                 {
@@ -46,16 +51,49 @@ class AssistantApiHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if path == "/api/sessions":
+            sessions = [item.to_dict() for item in self.state.session_store.list_sessions()]
+            self._send_json(HTTPStatus.OK, {"sessions": sessions})
+            return
+
+        if path.startswith("/api/sessions/"):
+            try:
+                session_id = self._session_id_from_path(path)
+                payload = self.state.session_store.get_session_payload(session_id)
+            except ValueError as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+                return
+            except KeyError as exc:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": str(exc)})
+                return
+
+            self._send_json(HTTPStatus.OK, payload)
+            return
+
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "Not found"})
 
     def do_POST(self) -> None:
-        if self.path != "/api/chat":
+        path = self._request_path()
+        if path == "/api/sessions":
+            try:
+                payload = self._read_json_body(allow_empty=True)
+                title = _optional_string(payload, "title") if payload else None
+                session = self.state.session_store.create_session(title)
+            except ValueError as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+                return
+
+            self._send_json(HTTPStatus.CREATED, {"session": session.to_dict(), "messages": []})
+            return
+
+        if path != "/api/chat":
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "Not found"})
             return
 
         try:
             payload = self._read_json_body()
             prompt = _required_string(payload, "prompt")
+            session_id = _optional_session_id(payload, "session_id")
             system_prompt = _optional_string(payload, "system_prompt")
             max_tokens = _optional_positive_int(payload, "max_tokens")
             temperature = _optional_temperature(payload, "temperature")
@@ -65,6 +103,16 @@ class AssistantApiHandler(BaseHTTPRequestHandler):
             return
 
         try:
+            session = self.state.session_store.ensure_session(session_id, prompt=prompt)
+            self.state.session_store.add_message(
+                session_id=session.session_id,
+                role="user",
+                content=prompt,
+                metadata={
+                    "system_prompt": system_prompt,
+                    "guardrails": guardrails,
+                },
+            )
             guardrail_settings = (
                 self.state.settings.resolve_guardrail_settings(guardrails)
                 if guardrails
@@ -79,6 +127,9 @@ class AssistantApiHandler(BaseHTTPRequestHandler):
             )
         except SettingsError as exc:
             self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+            return
+        except KeyError as exc:
+            self._send_json(HTTPStatus.NOT_FOUND, {"error": str(exc)})
             return
         except AssistantClientError as exc:
             logger.warning("Provider invocation failed", exc_info=True)
@@ -99,7 +150,21 @@ class AssistantApiHandler(BaseHTTPRequestHandler):
             )
             return
 
-        self._send_json(HTTPStatus.OK, result.to_dict())
+        assistant_message = self.state.session_store.add_message(
+            session_id=session.session_id,
+            role="assistant",
+            content=result.response_text,
+            metadata=result.to_dict(),
+        )
+        persisted_session = self.state.session_store.get_session(session.session_id)
+        self._send_json(
+            HTTPStatus.OK,
+            {
+                **result.to_dict(),
+                "session": persisted_session.to_dict(),
+                "message": assistant_message.to_dict(),
+            },
+        )
 
     @property
     def state(self) -> ServerState:
@@ -108,9 +173,14 @@ class AssistantApiHandler(BaseHTTPRequestHandler):
     def log_message(self, format: str, *args: object) -> None:
         logger.info("HTTP request", extra={"client": self.client_address[0]})
 
-    def _read_json_body(self) -> dict[str, Any]:
+    def _request_path(self) -> str:
+        return urlparse(self.path).path
+
+    def _read_json_body(self, *, allow_empty: bool = False) -> dict[str, Any]:
         raw_length = self.headers.get("Content-Length")
         if not raw_length:
+            if allow_empty:
+                return {}
             raise ValueError("Request body is required.")
 
         try:
@@ -119,6 +189,8 @@ class AssistantApiHandler(BaseHTTPRequestHandler):
             raise ValueError("Content-Length must be an integer.") from exc
 
         if content_length <= 0:
+            if allow_empty:
+                return {}
             raise ValueError("Request body is required.")
         if content_length > MAX_REQUEST_BYTES:
             raise ValueError("Request body is too large.")
@@ -133,6 +205,12 @@ class AssistantApiHandler(BaseHTTPRequestHandler):
             raise ValueError("Request body must be a JSON object.")
 
         return payload
+
+    def _session_id_from_path(self, path: str) -> int:
+        try:
+            return int(path.rsplit("/", 1)[1])
+        except (IndexError, ValueError) as exc:
+            raise ValueError("Session id must be an integer.") from exc
 
     def _send_empty(self, status: HTTPStatus) -> None:
         self.send_response(status)
@@ -163,6 +241,7 @@ def create_server(
     host: str,
     port: int,
     env_file: str,
+    db_path: str,
     guardrails: str | None = None,
 ) -> AssistantApiServer:
     settings = Settings.from_env(env_file)
@@ -178,6 +257,7 @@ def create_server(
         settings=settings,
         service=service,
         default_guardrails=settings.resolve_guardrail_settings(guardrails),
+        session_store=SessionStore(db_path),
     )
     return server
 
@@ -187,12 +267,14 @@ def run_server(
     host: str,
     port: int,
     env_file: str,
+    db_path: str,
     guardrails: str | None = None,
 ) -> None:
     server = create_server(
         host=host,
         port=port,
         env_file=env_file,
+        db_path=db_path,
         guardrails=guardrails,
     )
     bind_host, bind_port = server.server_address
@@ -210,6 +292,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--env-file", default=".env")
+    parser.add_argument("--db-path", default=str(Path(".local") / "assistant.db"))
     parser.add_argument("--guardrails", choices=["off", "user", "all"])
     return parser.parse_args()
 
@@ -221,6 +304,7 @@ def main() -> int:
             host=args.host,
             port=args.port,
             env_file=args.env_file,
+            db_path=args.db_path,
             guardrails=args.guardrails,
         )
     except SettingsError as exc:
@@ -276,6 +360,15 @@ def _optional_guardrail_mode(payload: dict[str, Any], key: str) -> str | None:
         return None
     if value not in {"off", "user", "all"}:
         raise ValueError(f"{key} must be one of: all, off, user.")
+    return value
+
+
+def _optional_session_id(payload: dict[str, Any], key: str) -> int | None:
+    value = payload.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, int) or value <= 0:
+        raise ValueError(f"{key} must be a positive integer.")
     return value
 
 
