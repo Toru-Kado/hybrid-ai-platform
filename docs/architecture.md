@@ -2,29 +2,30 @@
 
 ## Goal
 
-Provide a lightweight hybrid AI development environment where:
+Provide a lightweight AI platform baseline where:
 
-- The Intel Core i9 MacBook Pro remains a developer workstation, not a model-serving box
-- AWS provides the durable control plane and runtime services
-- Anthropic Claude through Amazon Bedrock is the primary model execution path
-- Terraform defines the initial platform baseline
-- A small Python service acts as the first assistant interface
+- the local machine stays focused on development and orchestration
+- Amazon Bedrock remains the primary model runtime
+- AWS CDK defines the infrastructure contract
+- the AWS footprint lives in the Toru Kado organization segment
+- the Python assistant is the first operator-facing surface
 
 ## High-Level Design
 
 ```text
 ┌────────────────────────────┐
-│ Intel Core i9 MacBook Pro  │
-│ - Terraform CLI            │
+│ Local Workstation          │
 │ - Python assistant CLI     │
-│ - Kilo Code                │
 │ - AWS CLI / profiles       │
+│ - CDK CLI                  │
+│ - editor workflows         │
 └──────────────┬─────────────┘
                │
                │ HTTPS / AWS APIs
                ▼
 ┌──────────────────────────────────────────┐
-│ AWS Account                              │
+│ AWS Account                             │
+│ Toru Kado organization segment          │
 │                                          │
 │  ┌────────────────────────────────────┐  │
 │  │ Amazon Bedrock                     │  │
@@ -44,7 +45,7 @@ Provide a lightweight hybrid AI development environment where:
 │  └────────────────────────────────────┘  │
 │                                          │
 │  ┌────────────────────────────────────┐  │
-│  │ IAM Runtime Role                   │  │
+│  │ IAM Runtime / Operator Roles       │  │
 │  │ - Bedrock invoke permissions       │  │
 │  │ - S3 access                        │  │
 │  │ - CloudWatch write access          │  │
@@ -54,70 +55,61 @@ Provide a lightweight hybrid AI development environment where:
 
 ## Why This Shape
 
-- The laptop is strong enough for development, but not the right place to optimize for heavy local inference.
-- Bedrock shifts model lifecycle, scaling, and secure API access into AWS.
-- Terraform gives the solo developer a repeatable baseline without introducing multi-account or networking complexity too early.
-- The Python app is small enough to understand in one sitting, but already structured for future API, worker, or hosted runtime expansion.
+- The repo no longer needs Terraform-era module layering for a very small baseline.
+- CDK aligns this repo with the newer precedent already in `fooocus-rig`.
+- Bedrock keeps model execution in AWS while the laptop stays a control plane.
+- The resource baseline is still intentionally small: durable storage, logs, and IAM boundaries first.
 
 ## Core Components
 
 ### 1. Local Workstation
 
-- Runs Terraform and the Python CLI assistant
-- Holds source code, `.env`, and local AWS profiles
-- Can run Kilo Code against the same AWS account and Bedrock region
+- runs the assistant CLI
+- runs AWS CLI and CDK commands
+- owns `.env`, local profiles, and source code
 
 ### 2. Amazon Bedrock
 
-- Primary inference runtime
-- Keeps local compute requirements low
-- Allows model swaps by configuration rather than app rewrites
+- primary inference runtime
+- selected through environment configuration
+- supports direct model IDs or inference profiles
 
-### 3. S3 AI Assets Bucket
+### 3. AI Assets Bucket
 
-Current use cases:
+- prompt packs
+- evaluation datasets
+- conversation exports
+- generated artifacts
 
-- Prompt packs
-- Evaluation datasets
-- Conversation exports
-- Generated artifacts
+### 4. Assistant Log Group
 
-Future use cases:
+- stable log destination for future hosted runtimes
+- shared operational namespace for assistant workloads
 
-- Batch jobs
-- RAG document staging
-- Fine-grained environment partitioning
+### 5. Runtime and Operator Roles
 
-### 4. CloudWatch Log Group
-
-- Holds assistant runtime logs once you add hosted components
-- Gives a named destination up front so later Lambda, ECS, or batch work lands consistently
-
-### 5. IAM Runtime Role
-
-- Central permission boundary for Bedrock access
-- Also grants limited access to the project S3 bucket and log group
-- Intended for future AWS-hosted workloads first
-- Can be assumed by local developers later if you choose to wire that into your AWS CLI config
+- runtime role for future AWS-hosted execution paths
+- optional operator role for local human use
+- policy scope can be narrowed to exact models, inference profiles, and guardrails
 
 ## Repository Mapping
 
 - [app](/Users/nathanmalitz/Code/hybrid-ai-platform/app): Python assistant package
-- [infra](/Users/nathanmalitz/Code/hybrid-ai-platform/infra): Terraform modules and `dev` environment
+- [infra](/Users/nathanmalitz/Code/hybrid-ai-platform/infra): CDK app and assertion tests
+- [scripts](/Users/nathanmalitz/Code/hybrid-ai-platform/scripts): bootstrap and deploy helpers
 - [docs](/Users/nathanmalitz/Code/hybrid-ai-platform/docs): operating notes and architecture records
 
 ## Operational Flow
 
-1. Terraform provisions S3, CloudWatch, and IAM.
-2. The developer configures `.env` and an AWS profile.
-3. The Python CLI loads config from `.env` plus local AWS credentials.
-4. The assistant sends prompts to Claude through Bedrock's Converse API.
-5. Outputs can later be saved to S3 or emitted to hosted runtimes without changing the core architecture.
+1. The operator authenticates to the intended Toru Kado AWS account.
+2. CDK bootstraps the account and synthesizes the baseline stack.
+3. CDK deploys the S3 bucket, log group, and IAM roles.
+4. The operator copies stack outputs into `.env` where useful.
+5. The Python CLI invokes Claude through Amazon Bedrock.
 
-## Future Extension Points
+## Extension Points
 
-- Add a FastAPI service on top of the existing `app/services` layer
-- Add S3-backed prompt and result persistence
-- Add Bedrock Guardrails and tracing
-- Move Terraform state to S3 + DynamoDB for team workflows
-- Introduce ECS or Lambda once the assistant needs long-running or shared execution
+- add hosted execution on Lambda, ECS, or batch
+- persist prompts and outputs to S3
+- add more formal environment overlays if non-dev stacks become necessary
+- introduce CI checks for both the app tests and CDK assertion tests

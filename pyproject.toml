@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "hybrid-ai-platform"
 version = "0.1.0"
-description = "Starter hybrid AI platform using Python, Terraform, AWS Bedrock, and Claude."
+description = "Hybrid AI platform using Python, AWS CDK, AWS Bedrock, and Claude."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
