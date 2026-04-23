@@ -76,7 +76,7 @@ BEDROCK_INFERENCE_PROFILE_ARN=arn:aws:bedrock:us-east-1:123456789012:inference-p
 
 ## Desktop App POC
 
-The desktop app uses Electron for the cross-platform shell and React for the UI. Electron starts a local Python API that reuses the same `.env`, Bedrock client, and `ChatService` as the CLI.
+The desktop app uses Electron for the cross-platform shell and React for the UI. Electron starts a local Python API that reuses the same `.env`, Bedrock client, and `ChatService` as the CLI. It also stores local chat sessions in SQLite so prior conversations can populate the sidebar.
 
 Start the desktop app from the repo root:
 
@@ -87,10 +87,10 @@ make desktop-dev
 Useful desktop targets:
 
 - `make desktop-api`: run only the local Python API on `127.0.0.1:8765`
-- `make desktop-build`: build the React renderer into `dist/`
+- `make desktop-build`: build the React renderer into `desktop/dist/`
 - `make desktop-pack`: build React and create an unpacked Electron app directory
 
-For packaged desktop builds, the app expects a Python runtime and project environment to be available. Set `HYBRID_AI_PYTHON` or `HYBRID_AI_ENV_FILE` when you need to point Electron at a non-default Python executable or env file.
+For packaged desktop builds, the app expects a Python runtime and project environment to be available. Set `HYBRID_AI_PYTHON`, `HYBRID_AI_ENV_FILE`, or `HYBRID_AI_DB_PATH` when you need to point Electron at a non-default Python executable, env file, or SQLite database path.
 
 ## CDK Setup
 

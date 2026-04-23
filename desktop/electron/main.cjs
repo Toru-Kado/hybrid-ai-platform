@@ -43,6 +43,9 @@ function startBackend() {
   const rootDir = projectRoot();
   const pythonCommand = resolvePythonCommand(rootDir);
   const envFile = process.env.HYBRID_AI_ENV_FILE || path.join(rootDir, ".env");
+  const dbPath =
+    process.env.HYBRID_AI_DB_PATH ||
+    path.join(app.getPath("userData"), "assistant.db");
 
   backendProcess = spawn(
     pythonCommand,
@@ -55,6 +58,8 @@ function startBackend() {
       String(API_PORT),
       "--env-file",
       envFile,
+      "--db-path",
+      dbPath,
     ],
     {
       cwd: rootDir,
@@ -122,6 +127,31 @@ async function createWindow() {
 ipcMain.handle("assistant:health", async () => {
   const response = await fetch(`${API_BASE_URL}/api/health`);
   return response.json();
+});
+
+ipcMain.handle("assistant:listSessions", async () => {
+  const response = await fetch(`${API_BASE_URL}/api/sessions`);
+  return response.json();
+});
+
+ipcMain.handle("assistant:createSession", async (_event, payload) => {
+  const response = await fetch(`${API_BASE_URL}/api/sessions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload || {}),
+  });
+  return response.json();
+});
+
+ipcMain.handle("assistant:getSession", async (_event, sessionId) => {
+  const response = await fetch(`${API_BASE_URL}/api/sessions/${sessionId}`);
+  const body = await response.json();
+  if (!response.ok) {
+    throw new Error(body.error || "Failed to load session.");
+  }
+  return body;
 });
 
 ipcMain.handle("assistant:chat", async (_event, payload) => {
