@@ -1,18 +1,24 @@
 :root {
-  color: #edf6eb;
-  background: #0d1413;
-  font-family: "Avenir Next", "Trebuchet MS", "Gill Sans", sans-serif;
+  color: #13294b;
+  background: #efe6d4;
+  font-family: "Optima", "Avenir Next", "Trebuchet MS", sans-serif;
   font-synthesis: none;
   text-rendering: geometricPrecision;
-  --ink: #edf6eb;
-  --muted: #9fb2a6;
-  --line: rgba(237, 246, 235, 0.12);
-  --line-strong: rgba(237, 246, 235, 0.22);
-  --panel: rgba(16, 24, 22, 0.82);
-  --panel-soft: rgba(255, 255, 255, 0.04);
-  --accent: #d7ff72;
-  --accent-2: #5fd0a5;
-  --danger: #ff8a6b;
+  --ink: #13294b;
+  --muted: #6d7992;
+  --line: rgba(19, 41, 75, 0.12);
+  --line-strong: rgba(19, 41, 75, 0.24);
+  --panel: rgba(255, 251, 245, 0.92);
+  --panel-soft: rgba(19, 41, 75, 0.04);
+  --accent: #b48a2b;
+  --accent-2: #174a8b;
+  --accent-soft: rgba(180, 138, 43, 0.14);
+  --blue-deep: #153a73;
+  --blue-rich: #1f4f97;
+  --paper: #fffaf1;
+  --stone: #efe6d4;
+  --danger: #a94b39;
+  --shadow: rgba(33, 45, 73, 0.14);
 }
 
 * {
@@ -25,9 +31,9 @@ body {
   min-height: 100vh;
   overflow: hidden;
   background:
-    radial-gradient(circle at 14% 8%, rgba(215, 255, 114, 0.16), transparent 28rem),
-    radial-gradient(circle at 86% 14%, rgba(95, 208, 165, 0.18), transparent 32rem),
-    linear-gradient(140deg, #0f1715 0%, #0c1518 50%, #141d17 100%);
+    radial-gradient(circle at 12% 10%, rgba(180, 138, 43, 0.2), transparent 24rem),
+    radial-gradient(circle at 88% 14%, rgba(23, 74, 139, 0.18), transparent 28rem),
+    linear-gradient(180deg, #f6efdf 0%, #efe6d4 46%, #e7dcc7 100%);
 }
 
 button,
@@ -65,13 +71,13 @@ textarea {
   letter-spacing: 0.18em;
   text-transform: uppercase;
   font-size: 0.72rem;
-  font-weight: 800;
+  font-weight: 900;
 }
 
 h1 {
   margin: 0;
   color: var(--ink);
-  font-family: "Iowan Old Style", "Georgia", serif;
+  font-family: "Baskerville", "Palatino Linotype", "Book Antiqua", serif;
   font-size: clamp(1.8rem, 3vw, 2.8rem);
   line-height: 0.98;
   letter-spacing: -0.08em;
@@ -80,8 +86,8 @@ h1 {
 h2 {
   margin: 0;
   color: var(--ink);
-  font-family: "Iowan Old Style", "Georgia", serif;
-  font-size: 1.8rem;
+  font-family: "Baskerville", "Palatino Linotype", "Book Antiqua", serif;
+  font-size: 1.6rem;
   line-height: 1;
 }
 
@@ -97,14 +103,14 @@ h2 {
 .chat-panel {
   border: 1px solid var(--line);
   background: var(--panel);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.24);
-  backdrop-filter: blur(22px);
+  box-shadow: 0 22px 48px var(--shadow);
+  backdrop-filter: blur(14px);
 }
 
 .status-pill {
   padding: 6px 10px;
   border-radius: 999px;
-  color: #162018;
+  color: #fff9ed;
   background: var(--accent);
   font-size: 0.75rem;
   font-weight: 900;
@@ -127,6 +133,10 @@ h2 {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(21, 58, 115, 0.96), rgba(18, 47, 92, 0.94)),
+    linear-gradient(135deg, rgba(180, 138, 43, 0.12), transparent 55%);
+  color: #f8f3e7;
 }
 
 .sidebar-header,
@@ -139,19 +149,33 @@ h2 {
   border-bottom: 1px solid var(--line);
 }
 
+.sidebar-header {
+  border-bottom-color: rgba(255, 250, 241, 0.14);
+}
+
+.sidebar .sidebar-kicker,
+.sidebar h2,
+.sidebar .session-placeholder,
+.sidebar .session-item,
+.sidebar .session-item strong,
+.sidebar .session-item span {
+  color: #f8f3e7;
+}
+
 .secondary-button {
   height: 42px;
   padding: 0 14px;
-  border: 1px solid var(--line-strong);
+  border: 1px solid rgba(255, 250, 241, 0.28);
   border-radius: 14px;
-  color: var(--ink);
-  background: rgba(255, 255, 255, 0.04);
+  color: #fffaf1;
+  background: rgba(255, 250, 241, 0.08);
   cursor: pointer;
   font-weight: 700;
 }
 
 .secondary-button:hover {
-  border-color: rgba(215, 255, 114, 0.42);
+  border-color: rgba(180, 138, 43, 0.56);
+  background: rgba(180, 138, 43, 0.16);
 }
 
 .session-list {
@@ -176,8 +200,10 @@ h2 {
   padding: 14px;
   border: 1px solid transparent;
   border-radius: 18px;
-  color: var(--ink);
-  background: var(--panel-soft);
+  color: #fffaf1;
+  background:
+    linear-gradient(135deg, rgba(255, 250, 241, 0.08), rgba(255, 250, 241, 0.03)),
+    var(--panel-soft);
   text-align: left;
   cursor: pointer;
 }
@@ -198,8 +224,10 @@ h2 {
 
 .session-item.active,
 .session-item:hover {
-  border-color: rgba(215, 255, 114, 0.36);
-  background: rgba(215, 255, 114, 0.08);
+  border-color: rgba(180, 138, 43, 0.48);
+  background:
+    linear-gradient(135deg, rgba(180, 138, 43, 0.2), rgba(255, 250, 241, 0.08)),
+    rgba(255, 250, 241, 0.06);
 }
 
 .chat-panel {
@@ -207,6 +235,9 @@ h2 {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 251, 245, 0.96), rgba(250, 244, 232, 0.92)),
+    var(--panel);
 }
 
 .chat-meta {
@@ -221,7 +252,7 @@ h2 {
   border: 1px solid var(--line);
   border-radius: 999px;
   color: var(--muted);
-  background: var(--panel-soft);
+  background: rgba(23, 74, 139, 0.04);
   font-size: 0.76rem;
   font-weight: 800;
 }
@@ -235,7 +266,7 @@ h2 {
 
 .status-strip .status-pill {
   border: 0;
-  color: #162018;
+  color: #fff9ed;
   background: var(--accent);
 }
 
@@ -244,6 +275,15 @@ h2 {
   min-height: 0;
   overflow: auto;
   padding: 14px 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 250, 241, 0.52), rgba(255, 250, 241, 0.2)),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 72px,
+      rgba(180, 138, 43, 0.04) 72px,
+      rgba(180, 138, 43, 0.04) 73px
+    );
 }
 
 .thread-placeholder,
@@ -266,17 +306,20 @@ h2 {
   padding: 14px 16px;
   border: 1px solid var(--line);
   border-radius: 22px;
+  box-shadow: 0 12px 28px rgba(24, 44, 77, 0.08);
 }
 
 .message.user {
   margin-left: auto;
-  color: #112018;
-  background: linear-gradient(135deg, rgba(215, 255, 114, 0.94), rgba(95, 208, 165, 0.86));
+  color: #fff8ec;
+  background: linear-gradient(135deg, var(--blue-rich), var(--blue-deep));
   border-color: transparent;
 }
 
 .message.assistant {
-  background: rgba(255, 255, 255, 0.04);
+  background:
+    linear-gradient(180deg, rgba(255, 252, 247, 0.96), rgba(249, 241, 225, 0.94)),
+    var(--paper);
 }
 
 .message header,
@@ -305,7 +348,7 @@ h2 {
 
 .message.user header span,
 .message.user .plain-message {
-  color: #132218;
+  color: rgba(255, 248, 236, 0.86);
 }
 
 .plain-message {
@@ -338,7 +381,7 @@ h2 {
 .markdown-body code {
   padding: 0.12rem 0.38rem;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(21, 58, 115, 0.08);
   font-family: "SFMono-Regular", "Menlo", "Consolas", monospace;
   font-size: 0.92em;
 }
@@ -346,9 +389,9 @@ h2 {
 .markdown-body pre {
   overflow: auto;
   padding: 14px;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(21, 58, 115, 0.12);
   border-radius: 16px;
-  background: rgba(0, 0, 0, 0.26);
+  background: rgba(21, 58, 115, 0.06);
 }
 
 .markdown-body pre code {
@@ -358,8 +401,8 @@ h2 {
 
 .markdown-body blockquote {
   padding-left: 14px;
-  border-left: 3px solid rgba(215, 255, 114, 0.42);
-  color: #c8d9c5;
+  border-left: 3px solid rgba(180, 138, 43, 0.62);
+  color: #42506c;
 }
 
 .composer {
@@ -368,7 +411,9 @@ h2 {
   gap: 10px;
   padding: 12px 16px 14px;
   border-top: 1px solid var(--line);
-  background: rgba(16, 24, 22, 0.94);
+  background:
+    linear-gradient(180deg, rgba(250, 244, 232, 0.88), rgba(245, 236, 218, 0.96)),
+    var(--paper);
 }
 
 label {
@@ -387,14 +432,14 @@ input {
   color: var(--ink);
   border: 1px solid var(--line);
   border-radius: 16px;
-  background: rgba(5, 10, 9, 0.48);
+  background: rgba(255, 255, 255, 0.72);
   outline: none;
 }
 
 textarea:focus,
 input:focus {
-  border-color: rgba(215, 255, 114, 0.72);
-  box-shadow: 0 0 0 4px rgba(215, 255, 114, 0.1);
+  border-color: rgba(180, 138, 43, 0.8);
+  box-shadow: 0 0 0 4px rgba(180, 138, 43, 0.12);
 }
 
 textarea {
@@ -420,8 +465,8 @@ input {
   height: 46px;
   border: 0;
   border-radius: 18px;
-  color: #101816;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #fffaf1;
+  background: linear-gradient(135deg, var(--accent), #8d6717);
   cursor: pointer;
   font-weight: 900;
 }
@@ -434,10 +479,10 @@ input {
 .error {
   margin: 16px 20px 0;
   padding: 14px 16px;
-  border: 1px solid rgba(255, 138, 107, 0.38);
+  border: 1px solid rgba(169, 75, 57, 0.28);
   border-radius: 18px;
-  color: #ffe2d8;
-  background: rgba(255, 138, 107, 0.14);
+  color: #8a3528;
+  background: rgba(169, 75, 57, 0.1);
 }
 
 @media (max-width: 1080px) {
