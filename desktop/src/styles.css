@@ -47,7 +47,7 @@ textarea {
 }
 
 .shell {
-  width: min(1280px, calc(100vw - 24px));
+  width: min(1520px, calc(100vw - 24px));
   height: calc(100dvh - 24px);
   margin: 0 auto;
   padding: 12px 0;
@@ -92,7 +92,7 @@ h2 {
 }
 
 .lede {
-  max-width: 900px;
+  max-width: 1080px;
   margin: 6px 0 0;
   color: var(--muted);
   font-size: 0.9rem;

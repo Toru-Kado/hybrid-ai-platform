@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
-import { SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from "./layout";
+import { DEFAULT_SIDEBAR_WIDTH, SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from "./layout";
 
 function createAssistantApi() {
   return {
@@ -96,7 +96,7 @@ describe("App layout behavior", () => {
     const layout = container.querySelector(".chat-layout");
     const resizer = screen.getByRole("separator", { name: "Resize session sidebar" });
 
-    expect(layout).toHaveStyle({ "--sidebar-width": "320px" });
+    expect(layout).toHaveStyle({ "--sidebar-width": `${DEFAULT_SIDEBAR_WIDTH}px` });
 
     fireEvent.pointerDown(resizer, { clientX: 320 });
     fireEvent.pointerMove(window, { clientX: 640 });

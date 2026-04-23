@@ -1,7 +1,7 @@
 export const COMPACT_LAYOUT_MAX_WIDTH = 1080;
 export const SIDEBAR_MIN_WIDTH = 260;
-export const SIDEBAR_MAX_WIDTH = 420;
-export const DEFAULT_SIDEBAR_WIDTH = 320;
+export const SIDEBAR_MAX_WIDTH = 520;
+export const DEFAULT_SIDEBAR_WIDTH = 340;
 
 export function clampSidebarWidth(width) {
   if (!Number.isFinite(width)) {
