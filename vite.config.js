@@ -7,4 +7,8 @@ export default defineConfig({
     outDir: "desktop/dist",
     emptyOutDir: true,
   },
+  test: {
+    environment: "jsdom",
+    setupFiles: "./desktop/src/test/setup.js",
+  },
 });
