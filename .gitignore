@@ -10,8 +10,10 @@ __pycache__/
 .ruff_cache/
 .cache/
 cdk.out/
+node_modules/
 dist/
 build/
+release/
 *.egg-info/
 
 infra/.venv/
