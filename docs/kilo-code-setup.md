@@ -13,7 +13,7 @@ The repo does not manage Kilo Code config files directly.
 
 Before configuring Kilo Code, you need:
 
-1. an AWS profile that resolves to the intended Toru Kadu account
+1. an AWS profile that resolves to the intended Toru Kado account
 2. a Bedrock-enabled region
 3. access to a Claude model or inference profile in that region
 
@@ -63,7 +63,7 @@ That avoids debugging one tool against a different Bedrock account or region tha
 
 - Bedrock access is not enabled for the current account, region, or model
 - the editor is using different credentials than your shell
-- the active account is not the intended Toru Kadu target
+- the active account is not the intended Toru Kado target
 
 ### Wrong region
 

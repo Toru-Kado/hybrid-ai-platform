@@ -19,7 +19,7 @@ Current constraints:
 - the local machine should remain a development and orchestration box
 - Amazon Bedrock is still the preferred runtime
 - infrastructure should align with the CDK-first precedent already used in `fooocus-rig`
-- deployments should target the Toru Kadu segment of the Angelica Technologies AWS organization
+- deployments should target the Toru Kado AWS organization segment
 - the solution should stay understandable and easy to evolve
 
 ## Decision

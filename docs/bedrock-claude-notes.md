@@ -86,7 +86,7 @@ This repo no longer assumes the original Terraform-era AWS account path.
 
 Before testing Bedrock access:
 
-1. authenticate the AWS CLI to the intended Toru Kadu account
+1. authenticate the AWS CLI to the intended Toru Kado account
 2. verify the active account with `aws sts get-caller-identity --profile <profile>`
 3. confirm the model or inference profile is enabled in that account and region
 

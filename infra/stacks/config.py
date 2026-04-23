@@ -39,8 +39,8 @@ def _int_env(name: str, default: int) -> int:
 class PlatformConfig:
     project_name: str = "hybrid-ai-platform"
     environment_name: str = "dev"
-    company_name: str = "Angelica Technologies"
-    organization_segment: str = "toru-kadu"
+    company_name: str = "Toru Kado"
+    organization_segment: str = "toru-kado"
     assets_bucket_name_override: str | None = None
     assets_bucket_force_destroy: bool = False
     log_retention_days: int = 14
@@ -58,13 +58,13 @@ class PlatformConfig:
             project_name=os.getenv("PROJECT_NAME", "hybrid-ai-platform").strip()
             or "hybrid-ai-platform",
             environment_name=os.getenv("ENVIRONMENT_NAME", "dev").strip() or "dev",
-            company_name=os.getenv("COMPANY_NAME", "Angelica Technologies").strip()
-            or "Angelica Technologies",
+            company_name=os.getenv("COMPANY_NAME", "Toru Kado").strip()
+            or "Toru Kado",
             organization_segment=os.getenv(
                 "ORGANIZATION_SEGMENT",
-                "toru-kadu",
+                "toru-kado",
             ).strip()
-            or "toru-kadu",
+            or "toru-kado",
             assets_bucket_name_override=(
                 os.getenv("ASSETS_BUCKET_NAME_OVERRIDE", "").strip() or None
             ),

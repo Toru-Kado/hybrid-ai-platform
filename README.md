@@ -5,7 +5,7 @@ Hybrid AI starter for:
 - local Python-based assistant workflows
 - Amazon Bedrock as the primary model runtime
 - AWS CDK as the infrastructure baseline
-- the Toru Kadu segment of the Angelica Technologies AWS organization
+- the Toru Kado AWS organization segment
 
 This repo has been reset away from Terraform. The IaC source of truth is now the CDK app under [infra](/Users/nathanmalitz/Code/hybrid-ai-platform/infra), and deploys should target the same AWS org/account path already being used in `fooocus-rig`.
 
@@ -27,17 +27,17 @@ The CDK stack currently provisions:
 
 The stack applies these baseline tags:
 
-- `Company=Angelica Technologies`
+- `Company=Toru Kado`
 - `Project=hybrid-ai-platform`
 - `ManagedBy=aws-cdk`
-- `OrganizationSegment=toru-kadu`
+- `OrganizationSegment=toru-kado`
 
 ## Prerequisites
 
 - Python `3.12`
 - AWS CLI v2
 - Node.js plus the AWS CDK CLI (`cdk`)
-- an AWS profile that resolves to the intended Toru Kadu account
+- an AWS profile that resolves to the intended Toru Kado account
 
 If you are using AWS IAM Identity Center, verify the target account before bootstrapping or deploying:
 

@@ -20,11 +20,11 @@ You need:
 - AWS CLI configured with credentials that can deploy CDK stacks
 - Node.js and the AWS CDK CLI installed locally
 - Python 3 available locally
-- access to the intended Toru Kadu AWS account
+- access to the intended Toru Kado AWS account
 
 If you are using AWS IAM Identity Center:
 
-- use the profile that resolves to the intended Toru Kadu account
+- use the profile that resolves to the intended Toru Kado account
 - verify the active account with `aws sts get-caller-identity --profile TK-Admin`
 
 ## First-Time Local Setup

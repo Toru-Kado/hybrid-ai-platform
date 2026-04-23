@@ -7,7 +7,7 @@ Provide a lightweight AI platform baseline where:
 - the local machine stays focused on development and orchestration
 - Amazon Bedrock remains the primary model runtime
 - AWS CDK defines the infrastructure contract
-- the AWS footprint lives in the Toru Kadu segment of the Angelica Technologies organization
+- the AWS footprint lives in the Toru Kado organization segment
 - the Python assistant is the first operator-facing surface
 
 ## High-Level Design
@@ -25,7 +25,7 @@ Provide a lightweight AI platform baseline where:
                ▼
 ┌──────────────────────────────────────────┐
 │ AWS Account                             │
-│ Toru Kadu organization segment          │
+│ Toru Kado organization segment          │
 │                                          │
 │  ┌────────────────────────────────────┐  │
 │  │ Amazon Bedrock                     │  │
@@ -101,7 +101,7 @@ Provide a lightweight AI platform baseline where:
 
 ## Operational Flow
 
-1. The operator authenticates to the intended Toru Kadu AWS account.
+1. The operator authenticates to the intended Toru Kado AWS account.
 2. CDK bootstraps the account and synthesizes the baseline stack.
 3. CDK deploys the S3 bucket, log group, and IAM roles.
 4. The operator copies stack outputs into `.env` where useful.

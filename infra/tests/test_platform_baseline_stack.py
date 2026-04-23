@@ -65,9 +65,9 @@ def test_default_stack_tags_resources_for_new_org_segment() -> None:
         {
             "Tags": Match.array_with(
                 [
-                    {"Key": "Company", "Value": "Angelica Technologies"},
+                    {"Key": "Company", "Value": "Toru Kado"},
                     {"Key": "ManagedBy", "Value": "aws-cdk"},
-                    {"Key": "OrganizationSegment", "Value": "toru-kadu"},
+                    {"Key": "OrganizationSegment", "Value": "toru-kado"},
                     {"Key": "Project", "Value": "hybrid-ai-platform"},
                 ]
             )
