@@ -1,4 +1,4 @@
-PYTHON ?= python3.12
+PYTHON ?= $(shell command -v python3.12 || command -v python3.14 || command -v python3.13 || command -v python3)
 VENV ?= .venv
 PIP := $(VENV)/bin/pip
 PYTHON_BIN := $(VENV)/bin/python
@@ -9,9 +9,12 @@ JSII_RUNTIME_PACKAGE_CACHE_ROOT ?= $(CURDIR)/.cache/jsii
 
 export JSII_RUNTIME_PACKAGE_CACHE_ROOT
 
-.PHONY: bootstrap install run example compile test verify infra-bootstrap infra-test cdk-bootstrap cdk-synth cdk-diff cdk-deploy smoke smoke-local smoke-bedrock smoke-stack smoke-deploy tree
+.PHONY: check-python bootstrap install run example compile test verify infra-bootstrap infra-test cdk-bootstrap cdk-synth cdk-diff cdk-deploy smoke smoke-local smoke-bedrock smoke-stack smoke-deploy tree
 
-bootstrap:
+check-python:
+	$(PYTHON) -c "import sys; sys.exit(0 if sys.version_info >= (3, 12) else 'Python >= 3.12 required; set PYTHON=/path/to/python3.12+')"
+
+bootstrap: check-python
 	$(PYTHON) -m venv $(VENV)
 	$(PIP) install --upgrade pip
 	$(PIP) install -e .
@@ -33,7 +36,7 @@ test:
 
 verify: compile test
 
-infra-bootstrap:
+infra-bootstrap: check-python
 	$(PYTHON) -m venv $(INFRA_VENV)
 	$(INFRA_PIP) install --upgrade pip
 	$(INFRA_PIP) install -r infra/requirements.txt
