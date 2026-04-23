@@ -98,11 +98,11 @@ Deploy the stack with the shared AWS profile and any optional config overrides:
 
 ```bash
 AWS_PROFILE=TK-Admin AWS_REGION=us-east-1 \
-BEDROCK_FOUNDATION_MODEL_IDS=anthropic.claude-3-5-sonnet-20241022-v2:0 \
-BEDROCK_INFERENCE_PROFILE_ARNS=arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0 \
-OPERATOR_USER_NAME=hybrid-ai-dev \
+BEDROCK_INFERENCE_PROFILE_ARNS=arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-sonnet-4-6 \
 ./scripts/deploy-baseline.sh
 ```
+
+Only set `OPERATOR_USER_NAME` if that IAM user already exists in the target AWS account. Leave it unset to skip the optional developer operator role.
 
 Useful deployment-time environment variables:
 

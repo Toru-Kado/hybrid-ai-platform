@@ -59,6 +59,8 @@ Optional deploy-time controls are supplied through environment variables such as
 - `OPERATOR_USER_NAME`
 - `ASSETS_BUCKET_NAME_OVERRIDE`
 
+Only set `OPERATOR_USER_NAME` when that IAM user already exists in the target account. Leave it unset to skip the optional developer operator role.
+
 ## Validate Outputs
 
 Inspect the deployed stack outputs:

@@ -80,6 +80,8 @@ To scope those IAM policies during deploy, set:
 
 If the allow-lists are left empty, the runtime and operator roles default to Bedrock invoke access on `*`. Tighten those lists once the target models and inference profiles are stable.
 
+Only set `OPERATOR_USER_NAME` for an existing IAM user in the target account. Leave it unset to skip the optional developer operator role.
+
 ## Account Notes
 
 This repo no longer assumes the original Terraform-era AWS account path.
