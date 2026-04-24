@@ -9,7 +9,7 @@ JSII_RUNTIME_PACKAGE_CACHE_ROOT ?= $(CURDIR)/.cache/jsii
 
 export JSII_RUNTIME_PACKAGE_CACHE_ROOT
 
-.PHONY: check-python bootstrap install run example compile test verify infra-bootstrap infra-test cdk-bootstrap cdk-synth cdk-diff cdk-deploy smoke smoke-local smoke-bedrock smoke-stack smoke-deploy tree
+.PHONY: check-python bootstrap install run example compile test verify frontend-bootstrap desktop-api desktop-dev desktop-build desktop-pack infra-bootstrap infra-test cdk-bootstrap cdk-synth cdk-diff cdk-deploy smoke smoke-local smoke-bedrock smoke-stack smoke-deploy tree
 
 check-python:
 	$(PYTHON) -c "import sys; sys.exit(0 if sys.version_info >= (3, 12) else 'Python >= 3.12 required; set PYTHON=/path/to/python3.12+')"
@@ -27,6 +27,21 @@ run:
 
 example:
 	$(PYTHON_BIN) -m app --system "You are a pragmatic cloud architect." --prompt "Explain why this repository keeps Bedrock as the primary runtime."
+
+frontend-bootstrap:
+	npm install
+
+desktop-api:
+	$(PYTHON_BIN) -m app.server
+
+desktop-dev:
+	npm run desktop:dev
+
+desktop-build:
+	npm run desktop:build
+
+desktop-pack:
+	npm run desktop:pack
 
 compile:
 	$(PYTHON_BIN) -m compileall app

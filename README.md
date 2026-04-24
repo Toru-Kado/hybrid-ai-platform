@@ -12,6 +12,7 @@ This repo has been reset away from Terraform. The IaC source of truth is now the
 ## What This Repo Contains
 
 - [app](/Users/nathanmalitz/Code/hybrid-ai-platform/app): Python CLI for prompting Claude through Amazon Bedrock
+- [desktop](/Users/nathanmalitz/Code/hybrid-ai-platform/desktop): React and Electron desktop POC
 - [infra](/Users/nathanmalitz/Code/hybrid-ai-platform/infra): Python AWS CDK app for the shared AWS baseline
 - [scripts](/Users/nathanmalitz/Code/hybrid-ai-platform/scripts): local helpers for CDK bootstrap and deploy
 - [docs](/Users/nathanmalitz/Code/hybrid-ai-platform/docs): architecture, Bedrock notes, and operator guidance
@@ -53,6 +54,7 @@ Create the app environment and install the Python package:
 
 ```bash
 make bootstrap
+npm install
 cp .env.example .env
 ```
 
@@ -71,6 +73,24 @@ AWS_REGION=us-east-1
 AWS_PROFILE=TK-Admin
 BEDROCK_INFERENCE_PROFILE_ARN=arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0
 ```
+
+## Desktop App POC
+
+The desktop app uses Electron for the cross-platform shell and React for the UI. Electron starts a local Python API that reuses the same `.env`, Bedrock client, and `ChatService` as the CLI. It also stores local chat sessions in SQLite so prior conversations can populate the sidebar.
+
+Start the desktop app from the repo root:
+
+```bash
+make desktop-dev
+```
+
+Useful desktop targets:
+
+- `make desktop-api`: run only the local Python API on `127.0.0.1:8765`
+- `make desktop-build`: build the React renderer into `desktop/dist/`
+- `make desktop-pack`: build React and create an unpacked Electron app directory
+
+For packaged desktop builds, the app expects a Python runtime and project environment to be available. Set `HYBRID_AI_PYTHON`, `HYBRID_AI_ENV_FILE`, or `HYBRID_AI_DB_PATH` when you need to point Electron at a non-default Python executable, env file, or SQLite database path.
 
 ## CDK Setup
 
@@ -150,7 +170,13 @@ If you enabled the operator role, its outputs are:
 Local assistant:
 
 ```bash
-python -m app --prompt "Summarize the purpose of this hybrid AI platform."
+.venv/bin/python -m app --prompt "Summarize the purpose of this hybrid AI platform."
+```
+
+Desktop assistant:
+
+```bash
+make desktop-dev
 ```
 
 Infra validation:

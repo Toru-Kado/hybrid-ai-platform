@@ -14,6 +14,7 @@ dependencies = [
 
 [project.scripts]
 hybrid-assistant = "app.main:main"
+hybrid-assistant-api = "app.server:main"
 
 [tool.setuptools]
 include-package-data = true
