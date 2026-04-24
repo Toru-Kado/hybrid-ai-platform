@@ -166,6 +166,45 @@ class AssistantApiHandler(BaseHTTPRequestHandler):
             },
         )
 
+    def do_PATCH(self) -> None:
+        path = self._request_path()
+        if not path.startswith("/api/sessions/"):
+            self._send_json(HTTPStatus.NOT_FOUND, {"error": "Not found"})
+            return
+
+        try:
+            session_id = self._session_id_from_path(path)
+            payload = self._read_json_body()
+            title = _required_string(payload, "title")
+            self.state.session_store.update_session_title(session_id, title)
+            session = self.state.session_store.get_session(session_id)
+        except ValueError as exc:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+            return
+        except KeyError as exc:
+            self._send_json(HTTPStatus.NOT_FOUND, {"error": str(exc)})
+            return
+
+        self._send_json(HTTPStatus.OK, {"session": session.to_dict()})
+
+    def do_DELETE(self) -> None:
+        path = self._request_path()
+        if not path.startswith("/api/sessions/"):
+            self._send_json(HTTPStatus.NOT_FOUND, {"error": "Not found"})
+            return
+
+        try:
+            session_id = self._session_id_from_path(path)
+            self.state.session_store.delete_session(session_id)
+        except ValueError as exc:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+            return
+        except KeyError as exc:
+            self._send_json(HTTPStatus.NOT_FOUND, {"error": str(exc)})
+            return
+
+        self._send_empty(HTTPStatus.NO_CONTENT)
+
     @property
     def state(self) -> ServerState:
         return self.server.state  # type: ignore[attr-defined, no-any-return]
@@ -228,7 +267,7 @@ class AssistantApiHandler(BaseHTTPRequestHandler):
 
     def _send_common_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "http://localhost:5173")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
 

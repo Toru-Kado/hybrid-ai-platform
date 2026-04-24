@@ -44,7 +44,28 @@ function createAssistantApi() {
         preview: "",
       },
     }),
-    chat: vi.fn(),
+    renameSession: vi.fn().mockImplementation(async (sessionId, payload) => ({
+      session: {
+        session_id: sessionId,
+        title: payload.title,
+        preview: "Summarize the hybrid AI platform.",
+      },
+    })),
+    deleteSession: vi.fn().mockResolvedValue(undefined),
+    chat: vi.fn().mockResolvedValue({
+      session: {
+        session_id: "session-1",
+        title: "Platform overview",
+        preview: "Summarize the hybrid AI platform.",
+      },
+      message: {
+        message_id: "message-2",
+        role: "assistant",
+        content: "Streaming works in readable chunks.",
+        created_at: "2026-04-23T08:02:00.000Z",
+        metadata: { request_id: "req-2", output_tokens: 24, latency_ms: 48 },
+      },
+    }),
   };
 }
 
@@ -56,12 +77,12 @@ function setViewportWidth(width) {
   });
 }
 
-async function renderApp(width) {
+async function renderApp(width, assistantApi = createAssistantApi()) {
   setViewportWidth(width);
-  window.assistantApi = createAssistantApi();
+  window.assistantApi = assistantApi;
   const view = render(<App />);
   await screen.findByText("Connected");
-  return view;
+  return { ...view, assistantApi };
 }
 
 describe("App layout behavior", () => {
@@ -72,6 +93,7 @@ describe("App layout behavior", () => {
   afterEach(() => {
     cleanup();
     delete window.assistantApi;
+    vi.useRealTimers();
   });
 
   it("collapses the session history behind a toggle on narrow viewports", async () => {
@@ -127,5 +149,60 @@ describe("App layout behavior", () => {
     await waitFor(() => {
       expect(sidebar).toHaveAttribute("aria-hidden", "false");
     });
+  });
+
+  it("renames the active session inline", async () => {
+    const { assistantApi } = await renderApp(1440);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Rename session" }));
+    const titleInput = screen.getByLabelText("Session title");
+    await user.clear(titleInput);
+    await user.type(titleInput, "Jerusalem planning");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(assistantApi.renameSession).toHaveBeenCalledWith("session-1", {
+      title: "Jerusalem planning",
+    });
+    await screen.findByRole("heading", { name: "Jerusalem planning" });
+  });
+
+  it("deletes the active session and clears the thread when none remain", async () => {
+    const assistantApi = createAssistantApi();
+    assistantApi.listSessions.mockResolvedValueOnce({
+      sessions: [
+        {
+          session_id: "session-1",
+          title: "Platform overview",
+          preview: "Summarize the hybrid AI platform.",
+        },
+      ],
+    });
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const { assistantApi: mountedApi } = await renderApp(1440, assistantApi);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Delete session" }));
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(mountedApi.deleteSession).toHaveBeenCalledWith("session-1");
+    await screen.findByText("Start a session and the full conversation will scroll here.");
+  });
+
+  it("reveals assistant replies progressively after the response arrives", async () => {
+    const { assistantApi } = await renderApp(1440);
+    const user = userEvent.setup();
+
+    await user.clear(screen.getByLabelText("Prompt"));
+    await user.type(screen.getByLabelText("Prompt"), "Give me a progress demo");
+    await user.click(screen.getByRole("button", { name: "Send message" }));
+
+    await waitFor(() => {
+      expect(assistantApi.chat).toHaveBeenCalled();
+    });
+
+    await screen.findByText("Streaming response...");
+    await screen.findByRole("button", { name: "Streaming..." });
+    await screen.findByText("Streaming works in readable chunks.");
   });
 });

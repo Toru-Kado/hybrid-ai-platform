@@ -32,6 +32,32 @@ const fallbackApi = {
     }
     return body;
   },
+  renameSession: async (sessionId, payload) => {
+    const response = await fetch(`http://127.0.0.1:8765/api/sessions/${sessionId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const body = await response.json();
+    if (!response.ok) {
+      throw new Error(body.error || "Failed to rename session.");
+    }
+    return body;
+  },
+  deleteSession: async (sessionId) => {
+    const response = await fetch(`http://127.0.0.1:8765/api/sessions/${sessionId}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      let body = {};
+      try {
+        body = await response.json();
+      } catch (_error) {
+        body = {};
+      }
+      throw new Error(body.error || "Failed to delete session.");
+    }
+  },
   chat: async (payload) => {
     const response = await fetch("http://127.0.0.1:8765/api/chat", {
       method: "POST",
@@ -63,6 +89,9 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingSessions, setIsLoadingSessions] = useState(true);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isRenamingSession, setIsRenamingSession] = useState(false);
+  const [renameTitle, setRenameTitle] = useState("");
+  const [streamingMessageId, setStreamingMessageId] = useState(null);
   const [isCompactLayout, setIsCompactLayout] = useState(() => readCompactViewport());
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => !readCompactViewport());
   const [isControlsOpen, setIsControlsOpen] = useState(() => !readCompactViewport());
@@ -70,6 +99,10 @@ export default function App() {
   const threadRef = useRef(null);
   const resizeCleanupRef = useRef(() => {});
   const previousCompactRef = useRef(readCompactViewport());
+  const revealTimerRef = useRef(null);
+  const revealRunRef = useRef(0);
+
+  const isBusy = isLoading || streamingMessageId !== null;
 
   useEffect(() => {
     let isMounted = true;
@@ -113,7 +146,7 @@ export default function App() {
       return;
     }
     container.scrollTop = container.scrollHeight;
-  }, [messages, isLoading]);
+  }, [messages, isLoading, streamingMessageId]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -140,10 +173,24 @@ export default function App() {
     setIsControlsOpen(!isCompactLayout);
   }, [isCompactLayout]);
 
-  useEffect(() => () => resizeCleanupRef.current(), []);
+  useEffect(
+    () => () => {
+      resizeCleanupRef.current();
+      cancelAssistantReveal();
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (isRenamingSession) {
+      return;
+    }
+    setRenameTitle(activeSession?.title || "");
+  }, [activeSession, isRenamingSession]);
 
   async function loadSession(sessionId, options = {}) {
     const { isMounted = true } = options;
+    cancelAssistantReveal();
     setIsLoadingHistory(true);
     setError("");
     try {
@@ -153,6 +200,7 @@ export default function App() {
       }
       setActiveSession(payload.session);
       setMessages(payload.messages || []);
+      setIsRenamingSession(false);
     } catch (caught) {
       if (isMounted) {
         setError(caught.message);
@@ -165,6 +213,7 @@ export default function App() {
   }
 
   async function createSession() {
+    cancelAssistantReveal();
     setError("");
     try {
       const payload = await api().createSession({});
@@ -172,6 +221,8 @@ export default function App() {
       setSessions((current) => [session, ...current]);
       setActiveSession(session);
       setMessages([]);
+      setIsRenamingSession(true);
+      setRenameTitle(session.title);
       if (isCompactLayout) {
         setIsSidebarOpen(false);
       }
@@ -195,6 +246,7 @@ export default function App() {
       created_at: new Date().toISOString(),
       metadata: null,
     };
+    const assistantMessageId = `assistant-${Date.now()}`;
 
     setIsLoading(true);
     setError("");
@@ -212,14 +264,27 @@ export default function App() {
       const session = payload.session;
       setActiveSession(session);
       setSessions((current) => mergeSession(current, session));
+      const persistedUserMessage = {
+        ...pendingUserMessage,
+        message_id: `user-${session.session_id}-${Date.now()}`,
+      };
       setMessages((current) => [
         ...current.filter((item) => item.message_id !== pendingUserMessage.message_id),
+        persistedUserMessage,
         {
-          ...pendingUserMessage,
-          message_id: `user-${session.session_id}-${Date.now()}`,
+          ...payload.message,
+          message_id: assistantMessageId,
+          content: "",
+          metadata: {
+            ...(payload.message.metadata || {}),
+            is_streaming: true,
+          },
         },
-        payload.message,
       ]);
+      startAssistantReveal({
+        ...payload.message,
+        message_id: assistantMessageId,
+      });
     } catch (caught) {
       setMessages((current) =>
         current.filter((item) => item.message_id !== pendingUserMessage.message_id),
@@ -233,6 +298,123 @@ export default function App() {
 
   function toggleSidebar() {
     setIsSidebarOpen((current) => !current);
+  }
+
+  function cancelAssistantReveal() {
+    revealRunRef.current += 1;
+    if (revealTimerRef.current) {
+      window.clearInterval(revealTimerRef.current);
+      revealTimerRef.current = null;
+    }
+    setStreamingMessageId(null);
+  }
+
+  function startAssistantReveal(message) {
+    cancelAssistantReveal();
+    const content = message.content || "";
+    if (!content) {
+      setMessages((current) =>
+        current.map((item) =>
+          item.message_id === message.message_id
+            ? { ...message, metadata: message.metadata || null }
+            : item,
+        ),
+      );
+      return;
+    }
+
+    const runId = revealRunRef.current;
+    const chunkSize = Math.max(6, Math.ceil(content.length / 30));
+    let nextLength = 0;
+    setStreamingMessageId(message.message_id);
+
+    function applyChunk() {
+      if (runId !== revealRunRef.current) {
+        return;
+      }
+      nextLength = Math.min(content.length, nextLength + chunkSize);
+      const isComplete = nextLength >= content.length;
+      setMessages((current) =>
+        current.map((item) =>
+          item.message_id === message.message_id
+            ? {
+                ...message,
+                content: content.slice(0, nextLength),
+                metadata: isComplete
+                  ? message.metadata || null
+                  : {
+                      ...(message.metadata || {}),
+                      is_streaming: true,
+                    },
+              }
+            : item,
+        ),
+      );
+      if (isComplete) {
+        if (revealTimerRef.current) {
+          window.clearInterval(revealTimerRef.current);
+          revealTimerRef.current = null;
+        }
+        setStreamingMessageId(null);
+      }
+    }
+
+    applyChunk();
+    if (content.length <= chunkSize) {
+      return;
+    }
+    revealTimerRef.current = window.setInterval(applyChunk, 24);
+  }
+
+  async function submitRenameSession(event) {
+    event.preventDefault();
+    if (!activeSession) {
+      return;
+    }
+
+    const nextTitle = renameTitle.trim();
+    if (!nextTitle) {
+      setError("Session title cannot be empty.");
+      return;
+    }
+
+    setError("");
+    try {
+      const payload = await api().renameSession(activeSession.session_id, { title: nextTitle });
+      setActiveSession(payload.session);
+      setSessions((current) => replaceSession(current, payload.session));
+      setIsRenamingSession(false);
+    } catch (caught) {
+      setError(caught.message);
+    }
+  }
+
+  async function deleteActiveSession() {
+    if (!activeSession) {
+      return;
+    }
+    if (!window.confirm(`Delete "${activeSession.title}"?`)) {
+      return;
+    }
+
+    cancelAssistantReveal();
+    setError("");
+    try {
+      await api().deleteSession(activeSession.session_id);
+      const remainingSessions = sessions.filter(
+        (item) => item.session_id !== activeSession.session_id,
+      );
+      setSessions(remainingSessions);
+      setIsRenamingSession(false);
+      if (remainingSessions.length > 0) {
+        await loadSession(remainingSessions[0].session_id);
+      } else {
+        setActiveSession(null);
+        setMessages([]);
+      }
+    } catch (caught) {
+      setError(caught.message);
+    }
   }
 
   function startSidebarResize(event) {
@@ -297,7 +479,12 @@ export default function App() {
               <p className="sidebar-kicker">Sessions</p>
               <h2>Conversation history</h2>
             </div>
-            <button type="button" className="secondary-button" onClick={createSession}>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={isBusy}
+              onClick={createSession}
+            >
               New chat
             </button>
           </div>
@@ -351,9 +538,57 @@ export default function App() {
                   {isSidebarOpen ? "Hide sessions" : "Show sessions"}
                 </button>
               ) : null}
-              <div>
+              <div className="session-header-stack">
                 <p className="sidebar-kicker">Current session</p>
-                <h2>{activeSession?.title || "New chat"}</h2>
+                {isRenamingSession ? (
+                  <form className="session-title-form" onSubmit={submitRenameSession}>
+                    <input
+                      aria-label="Session title"
+                      value={renameTitle}
+                      onChange={(event) => setRenameTitle(event.target.value)}
+                    />
+                    <div className="session-action-row">
+                      <button type="submit" className="secondary-button compact-button">
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-button compact-button subtle-button"
+                        disabled={isBusy}
+                        onClick={() => {
+                          setIsRenamingSession(false);
+                          setRenameTitle(activeSession?.title || "");
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <>
+                    <h2>{activeSession?.title || "New chat"}</h2>
+                    {activeSession ? (
+                      <div className="session-action-row">
+                        <button
+                          type="button"
+                          className="secondary-button compact-button subtle-button"
+                          disabled={isBusy}
+                          onClick={() => setIsRenamingSession(true)}
+                        >
+                          Rename session
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-button compact-button danger-button"
+                          disabled={isBusy}
+                          onClick={deleteActiveSession}
+                        >
+                          Delete session
+                        </button>
+                      </div>
+                    ) : null}
+                  </>
+                )}
               </div>
             </div>
             <StatusStrip health={health} />
@@ -369,7 +604,13 @@ export default function App() {
                 Start a session and the full conversation will scroll here.
               </div>
             ) : (
-              messages.map((message) => <MessageBubble key={message.message_id} message={message} />)
+              messages.map((message) => (
+                <MessageBubble
+                  key={message.message_id}
+                  message={message}
+                  isStreaming={streamingMessageId === message.message_id}
+                />
+              ))
             )}
             {isLoading ? <div className="thinking">Assistant is thinking...</div> : null}
           </div>
@@ -381,6 +622,7 @@ export default function App() {
                 type="button"
                 className="secondary-button composer-toggle"
                 aria-expanded={isControlsOpen}
+                disabled={isBusy}
                 onClick={() => setIsControlsOpen((current) => !current)}
               >
                 {isControlsOpen ? "Hide controls" : "Show controls"}
@@ -390,6 +632,7 @@ export default function App() {
               id="prompt"
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
+              disabled={isBusy}
               placeholder="Ask the platform assistant..."
             />
 
@@ -398,6 +641,7 @@ export default function App() {
                 System prompt override
                 <input
                   value={systemPrompt}
+                  disabled={isBusy}
                   onChange={(event) => setSystemPrompt(event.target.value)}
                   placeholder="Optional"
                 />
@@ -410,6 +654,7 @@ export default function App() {
                   max="1"
                   step="0.1"
                   value={temperature}
+                  disabled={isBusy}
                   onChange={(event) => setTemperature(event.target.value)}
                 />
               </label>
@@ -420,13 +665,14 @@ export default function App() {
                   min="1"
                   step="1"
                   value={maxTokens}
+                  disabled={isBusy}
                   onChange={(event) => setMaxTokens(event.target.value)}
                 />
               </label>
             </div>
 
-            <button type="submit" disabled={isLoading}>
-              {isLoading ? "Thinking..." : "Send message"}
+            <button type="submit" disabled={isBusy}>
+              {isLoading ? "Thinking..." : streamingMessageId ? "Streaming..." : "Send message"}
             </button>
           </form>
         </section>
@@ -446,7 +692,7 @@ function StatusStrip({ health }) {
   );
 }
 
-function MessageBubble({ message }) {
+function MessageBubble({ message, isStreaming = false }) {
   const isAssistant = message.role === "assistant";
   const metadata = message.metadata || {};
 
@@ -465,6 +711,8 @@ function MessageBubble({ message }) {
         <p className="plain-message">{message.content}</p>
       )}
 
+      {isStreaming ? <footer className="streaming-indicator">Streaming response...</footer> : null}
+
       {isAssistant && metadata.request_id ? (
         <footer>
           <span>{metadata.output_tokens ?? "?"} output tokens</span>
@@ -478,6 +726,10 @@ function MessageBubble({ message }) {
 function mergeSession(current, session) {
   const existing = current.filter((item) => item.session_id !== session.session_id);
   return [session, ...existing];
+}
+
+function replaceSession(current, session) {
+  return current.map((item) => (item.session_id === session.session_id ? session : item));
 }
 
 function formatTimestamp(value) {

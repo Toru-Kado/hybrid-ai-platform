@@ -166,7 +166,7 @@ class SessionStore:
         clean_title = title.strip() or "New session"
         updated_at = _utc_now()
         with closing(self._connect()) as connection:
-            connection.execute(
+            cursor = connection.execute(
                 """
                 UPDATE sessions
                 SET title = ?, updated_at = ?
@@ -174,6 +174,21 @@ class SessionStore:
                 """,
                 (clean_title, updated_at, session_id),
             )
+            if cursor.rowcount == 0:
+                raise KeyError(f"Session {session_id} was not found.")
+            connection.commit()
+
+    def delete_session(self, session_id: int) -> None:
+        with closing(self._connect()) as connection:
+            cursor = connection.execute(
+                """
+                DELETE FROM sessions
+                WHERE id = ?
+                """,
+                (session_id,),
+            )
+            if cursor.rowcount == 0:
+                raise KeyError(f"Session {session_id} was not found.")
             connection.commit()
 
     def add_message(

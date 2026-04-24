@@ -154,6 +154,37 @@ ipcMain.handle("assistant:getSession", async (_event, sessionId) => {
   return body;
 });
 
+ipcMain.handle("assistant:renameSession", async (_event, sessionId, payload) => {
+  const response = await fetch(`${API_BASE_URL}/api/sessions/${sessionId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload || {}),
+  });
+  const body = await response.json();
+  if (!response.ok) {
+    throw new Error(body.error || "Failed to rename session.");
+  }
+  return body;
+});
+
+ipcMain.handle("assistant:deleteSession", async (_event, sessionId) => {
+  const response = await fetch(`${API_BASE_URL}/api/sessions/${sessionId}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) {
+    let body = {};
+    try {
+      body = await response.json();
+    } catch (_error) {
+      body = {};
+    }
+    throw new Error(body.error || "Failed to delete session.");
+  }
+  return null;
+});
+
 ipcMain.handle("assistant:chat", async (_event, payload) => {
   const response = await fetch(`${API_BASE_URL}/api/chat`, {
     method: "POST",
