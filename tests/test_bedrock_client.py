@@ -1,5 +1,6 @@
 import unittest
 
+from app.clients.base import ConversationTurn
 from app.clients.bedrock import _build_converse_payload, _normalize_bedrock_error
 from app.config.settings import GuardrailSettings
 
@@ -20,6 +21,7 @@ class BedrockPayloadTests(unittest.TestCase):
         payload = _build_converse_payload(
             target_identifier="anthropic.claude-3-5-sonnet-20241022-v2:0",
             prompt="hello",
+            conversation=None,
             system_prompt="system text",
             max_tokens=128,
             temperature=0.2,
@@ -36,6 +38,7 @@ class BedrockPayloadTests(unittest.TestCase):
         payload = _build_converse_payload(
             target_identifier="anthropic.claude-3-5-sonnet-20241022-v2:0",
             prompt="hello",
+            conversation=None,
             system_prompt="system text",
             max_tokens=128,
             temperature=0.2,
@@ -63,6 +66,7 @@ class BedrockPayloadTests(unittest.TestCase):
         payload = _build_converse_payload(
             target_identifier="anthropic.claude-3-5-sonnet-20241022-v2:0",
             prompt="hello",
+            conversation=None,
             system_prompt="system text",
             max_tokens=128,
             temperature=0.2,
@@ -78,6 +82,31 @@ class BedrockPayloadTests(unittest.TestCase):
         self.assertIn("guardContent", payload["messages"][0]["content"][0])
         self.assertIn("guardContent", payload["system"][0])
         self.assertNotIn("trace", payload["guardrailConfig"])
+
+    def test_builds_conversation_payload_with_history(self):
+        payload = _build_converse_payload(
+            target_identifier="anthropic.claude-3-5-sonnet-20241022-v2:0",
+            prompt="latest user turn",
+            conversation=[
+                ConversationTurn(role="user", content="first question"),
+                ConversationTurn(role="assistant", content="first answer"),
+                ConversationTurn(role="user", content="latest user turn"),
+            ],
+            system_prompt=None,
+            max_tokens=128,
+            temperature=0.2,
+            guardrail_settings=None,
+            request_metadata=None,
+        )
+
+        self.assertEqual(
+            payload["messages"],
+            [
+                {"role": "user", "content": [{"text": "first question"}]},
+                {"role": "assistant", "content": [{"text": "first answer"}]},
+                {"role": "user", "content": [{"text": "latest user turn"}]},
+            ],
+        )
 
     def test_adds_inference_profile_hint_for_on_demand_validation_error(self):
         error = _normalize_bedrock_error(

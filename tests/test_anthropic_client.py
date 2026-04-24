@@ -2,6 +2,7 @@ import io
 import unittest
 from urllib import error
 
+from app.clients.base import ConversationTurn
 from app.clients.anthropic import (
     _build_messages_payload,
     _normalize_anthropic_http_error,
@@ -13,6 +14,7 @@ class AnthropicClientTests(unittest.TestCase):
         payload = _build_messages_payload(
             model="claude-sonnet-4-5",
             prompt="hello",
+            conversation=None,
             system_prompt="system text",
             max_tokens=256,
             temperature=0.3,
@@ -23,6 +25,29 @@ class AnthropicClientTests(unittest.TestCase):
         self.assertEqual(payload["temperature"], 0.3)
         self.assertEqual(payload["system"], "system text")
         self.assertEqual(payload["messages"], [{"role": "user", "content": "hello"}])
+
+    def test_builds_messages_payload_with_history(self):
+        payload = _build_messages_payload(
+            model="claude-sonnet-4-5",
+            prompt="ignored fallback",
+            conversation=[
+                ConversationTurn(role="user", content="first question"),
+                ConversationTurn(role="assistant", content="first answer"),
+                ConversationTurn(role="user", content="follow up"),
+            ],
+            system_prompt=None,
+            max_tokens=256,
+            temperature=0.3,
+        )
+
+        self.assertEqual(
+            payload["messages"],
+            [
+                {"role": "user", "content": "first question"},
+                {"role": "assistant", "content": "first answer"},
+                {"role": "user", "content": "follow up"},
+            ],
+        )
 
     def test_normalizes_anthropic_http_error(self):
         response_body = io.BytesIO(

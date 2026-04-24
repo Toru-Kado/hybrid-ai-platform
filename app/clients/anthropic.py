@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import Any, Sequence
 from urllib import error, request
 
-from app.clients.base import AssistantClientError, AssistantResponse
+from app.clients.base import AssistantClientError, AssistantResponse, ConversationTurn
 from app.config.settings import GuardrailSettings, Settings
 
 logger = logging.getLogger(__name__)
@@ -35,6 +35,7 @@ class AnthropicRuntimeClient:
         self,
         prompt: str,
         *,
+        conversation: Sequence[ConversationTurn] | None = None,
         system_prompt: str | None = None,
         max_tokens: int | None = None,
         temperature: float | None = None,
@@ -50,6 +51,7 @@ class AnthropicRuntimeClient:
         payload = _build_messages_payload(
             model=self.target_identifier,
             prompt=prompt,
+            conversation=conversation,
             system_prompt=system_prompt,
             max_tokens=max_tokens or self._settings.model_max_tokens,
             temperature=(
@@ -96,18 +98,19 @@ def _build_messages_payload(
     *,
     model: str,
     prompt: str,
+    conversation: Sequence[ConversationTurn] | None,
     system_prompt: str | None,
     max_tokens: int,
     temperature: float,
 ) -> dict[str, Any]:
+    message_turns = list(conversation) if conversation else [ConversationTurn(role="user", content=prompt)]
     payload: dict[str, Any] = {
         "model": model,
         "max_tokens": max_tokens,
         "messages": [
-            {
-                "role": "user",
-                "content": prompt,
-            }
+            {"role": turn.role, "content": turn.content}
+            for turn in message_turns
+            if turn.content.strip()
         ],
         "temperature": temperature,
     }

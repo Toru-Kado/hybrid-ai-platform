@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Sequence
 
-from app.clients.base import AssistantClientError, AssistantResponse
+from app.clients.base import AssistantClientError, AssistantResponse, ConversationTurn
 from app.config.settings import GuardrailSettings, Settings
 
 logger = logging.getLogger(__name__)
@@ -57,6 +57,7 @@ class BedrockRuntimeClient:
         self,
         prompt: str,
         *,
+        conversation: Sequence[ConversationTurn] | None = None,
         system_prompt: str | None = None,
         max_tokens: int | None = None,
         temperature: float | None = None,
@@ -65,6 +66,7 @@ class BedrockRuntimeClient:
         payload = _build_converse_payload(
             target_identifier=self.target_identifier,
             prompt=prompt,
+            conversation=conversation,
             system_prompt=system_prompt,
             max_tokens=max_tokens or self._settings.model_max_tokens,
             temperature=(
@@ -125,20 +127,17 @@ def _build_converse_payload(
     *,
     target_identifier: str,
     prompt: str,
+    conversation: Sequence[ConversationTurn] | None,
     system_prompt: str | None,
     max_tokens: int,
     temperature: float,
     guardrail_settings: GuardrailSettings | None,
     request_metadata: dict[str, str] | None,
 ) -> dict[str, Any]:
+    message_turns = list(conversation) if conversation else [ConversationTurn(role="user", content=prompt)]
     payload: dict[str, Any] = {
         "modelId": target_identifier,
-        "messages": [
-            {
-                "role": "user",
-                "content": _build_user_content(prompt, guardrail_settings),
-            }
-        ],
+        "messages": _build_messages(message_turns, guardrail_settings),
         "inferenceConfig": {
             "maxTokens": max_tokens,
             "temperature": temperature,
@@ -169,6 +168,27 @@ def _build_request_metadata(settings: Settings) -> dict[str, str]:
         "targetKind": settings.runtime_target.kind,
         "targetSource": settings.runtime_target.source_env,
     }
+
+
+def _build_messages(
+    turns: Sequence[ConversationTurn],
+    guardrail_settings: GuardrailSettings | None,
+) -> list[dict[str, Any]]:
+    messages: list[dict[str, Any]] = []
+    for turn in turns:
+        content = turn.content.strip()
+        if not content:
+            continue
+        if turn.role == "assistant":
+            messages.append({"role": "assistant", "content": [{"text": content}]})
+            continue
+        messages.append(
+            {
+                "role": "user",
+                "content": _build_user_content(content, guardrail_settings),
+            }
+        )
+    return messages
 
 
 def _build_user_content(
