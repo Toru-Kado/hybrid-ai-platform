@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import {
+  DEFAULT_SIDEBAR_WIDTH,
+  clampSidebarWidth,
+  readCompactViewport,
+} from "./layout";
 
 const fallbackApi = {
   health: async () => {
@@ -58,7 +63,13 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingSessions, setIsLoadingSessions] = useState(true);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isCompactLayout, setIsCompactLayout] = useState(() => readCompactViewport());
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => !readCompactViewport());
+  const [isControlsOpen, setIsControlsOpen] = useState(() => !readCompactViewport());
+  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const threadRef = useRef(null);
+  const resizeCleanupRef = useRef(() => {});
+  const previousCompactRef = useRef(readCompactViewport());
 
   useEffect(() => {
     let isMounted = true;
@@ -104,6 +115,33 @@ export default function App() {
     container.scrollTop = container.scrollHeight;
   }, [messages, isLoading]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    function syncLayoutMode() {
+      setIsCompactLayout(readCompactViewport());
+    }
+
+    window.addEventListener("resize", syncLayoutMode);
+    return () => {
+      window.removeEventListener("resize", syncLayoutMode);
+    };
+  }, []);
+
+  useEffect(() => {
+    const previousCompact = previousCompactRef.current;
+    if (previousCompact === isCompactLayout) {
+      return;
+    }
+    previousCompactRef.current = isCompactLayout;
+    setIsSidebarOpen(!isCompactLayout);
+    setIsControlsOpen(!isCompactLayout);
+  }, [isCompactLayout]);
+
+  useEffect(() => () => resizeCleanupRef.current(), []);
+
   async function loadSession(sessionId, options = {}) {
     const { isMounted = true } = options;
     setIsLoadingHistory(true);
@@ -134,6 +172,9 @@ export default function App() {
       setSessions((current) => [session, ...current]);
       setActiveSession(session);
       setMessages([]);
+      if (isCompactLayout) {
+        setIsSidebarOpen(false);
+      }
     } catch (caught) {
       setError(caught.message);
     }
@@ -190,6 +231,34 @@ export default function App() {
     }
   }
 
+  function toggleSidebar() {
+    setIsSidebarOpen((current) => !current);
+  }
+
+  function startSidebarResize(event) {
+    if (isCompactLayout) {
+      return;
+    }
+
+    const startX = event.clientX;
+    const startWidth = sidebarWidth;
+
+    function handlePointerMove(moveEvent) {
+      const delta = moveEvent.clientX - startX;
+      setSidebarWidth(clampSidebarWidth(startWidth + delta));
+    }
+
+    function stopResizing() {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", stopResizing);
+      resizeCleanupRef.current = () => {};
+    }
+
+    resizeCleanupRef.current = stopResizing;
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", stopResizing);
+  }
+
   return (
     <main className="shell">
       <section className="hero">
@@ -203,8 +272,26 @@ export default function App() {
         </div>
       </section>
 
-      <section className="chat-layout">
-        <aside className="sidebar">
+      <section
+        className={`chat-layout ${isCompactLayout ? "compact" : ""}`}
+        style={{ "--sidebar-width": `${sidebarWidth}px` }}
+      >
+        {isCompactLayout && isSidebarOpen ? (
+          <button
+            type="button"
+            className="sidebar-scrim"
+            aria-label="Close session history"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        ) : null}
+
+        <aside
+          className={`sidebar ${isCompactLayout ? "compact" : ""} ${
+            isSidebarOpen ? "open" : ""
+          }`}
+          aria-hidden={isCompactLayout && !isSidebarOpen}
+          aria-label="Conversation history"
+        >
           <div className="sidebar-header">
             <div>
               <p className="sidebar-kicker">Sessions</p>
@@ -227,7 +314,12 @@ export default function App() {
                   className={`session-item ${
                     activeSession?.session_id === session.session_id ? "active" : ""
                   }`}
-                  onClick={() => loadSession(session.session_id)}
+                  onClick={() => {
+                    loadSession(session.session_id);
+                    if (isCompactLayout) {
+                      setIsSidebarOpen(false);
+                    }
+                  }}
                 >
                   <strong>{session.title}</strong>
                   <span>{session.preview || "No messages yet."}</span>
@@ -237,11 +329,32 @@ export default function App() {
           </div>
         </aside>
 
+        {!isCompactLayout ? (
+          <div
+            className="sidebar-resizer"
+            role="separator"
+            aria-label="Resize session sidebar"
+            aria-orientation="vertical"
+            onPointerDown={startSidebarResize}
+          />
+        ) : null}
+
         <section className="chat-panel">
           <header className="chat-header">
-            <div>
-              <p className="sidebar-kicker">Current session</p>
-              <h2>{activeSession?.title || "New chat"}</h2>
+            <div className="chat-heading">
+              {isCompactLayout ? (
+                <button
+                  type="button"
+                  className="secondary-button sidebar-toggle"
+                  onClick={toggleSidebar}
+                >
+                  {isSidebarOpen ? "Hide sessions" : "Show sessions"}
+                </button>
+              ) : null}
+              <div>
+                <p className="sidebar-kicker">Current session</p>
+                <h2>{activeSession?.title || "New chat"}</h2>
+              </div>
             </div>
             <StatusStrip health={health} />
           </header>
@@ -262,7 +375,17 @@ export default function App() {
           </div>
 
           <form className="composer" onSubmit={submitPrompt}>
-            <label htmlFor="prompt">Prompt</label>
+            <div className="composer-topline">
+              <label htmlFor="prompt">Prompt</label>
+              <button
+                type="button"
+                className="secondary-button composer-toggle"
+                aria-expanded={isControlsOpen}
+                onClick={() => setIsControlsOpen((current) => !current)}
+              >
+                {isControlsOpen ? "Hide controls" : "Show controls"}
+              </button>
+            </div>
             <textarea
               id="prompt"
               value={prompt}
@@ -270,7 +393,7 @@ export default function App() {
               placeholder="Ask the platform assistant..."
             />
 
-            <div className="composer-grid">
+            <div className="composer-grid" hidden={!isControlsOpen}>
               <label>
                 System prompt override
                 <input
