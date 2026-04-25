@@ -323,12 +323,12 @@ h2 {
   height: 38px;
   padding: 0 13px;
   border-radius: 11px;
-  border-color: rgba(226, 186, 96, 0.62);
-  color: #fffaf1;
-  background: linear-gradient(180deg, rgba(25, 78, 147, 0.98), rgba(19, 58, 115, 1));
+  border-color: rgba(163, 119, 24, 0.46);
+  color: #3b2a08;
+  background: linear-gradient(180deg, rgba(232, 197, 117, 0.98), rgba(168, 124, 31, 1));
   box-shadow:
-    inset 0 1px 0 rgba(255, 250, 241, 0.16),
-    0 6px 16px rgba(15, 34, 66, 0.16);
+    inset 0 1px 0 rgba(255, 247, 223, 0.52),
+    0 6px 16px rgba(88, 66, 18, 0.14);
   font-size: 0.88rem;
   font-weight: 800;
 }
@@ -682,13 +682,13 @@ input {
 
 .composer button {
   height: 38px;
-  border: 1px solid rgba(226, 186, 96, 0.44);
+  border: 1px solid rgba(163, 119, 24, 0.42);
   border-radius: 11px;
-  color: #fffaf1;
-  background: linear-gradient(180deg, rgba(25, 78, 147, 0.98), rgba(19, 58, 115, 1));
+  color: #3b2a08;
+  background: linear-gradient(180deg, rgba(232, 197, 117, 0.98), rgba(168, 124, 31, 1));
   box-shadow:
-    inset 0 1px 0 rgba(255, 250, 241, 0.16),
-    0 6px 16px rgba(15, 34, 66, 0.14);
+    inset 0 1px 0 rgba(255, 247, 223, 0.52),
+    0 6px 16px rgba(88, 66, 18, 0.14);
   cursor: pointer;
   font-size: 0.88rem;
   font-weight: 800;
@@ -701,10 +701,11 @@ input {
 }
 
 .composer button:hover:not(:disabled) {
-  border-color: rgba(239, 206, 126, 0.62);
+  border-color: rgba(163, 119, 24, 0.56);
+  background: linear-gradient(180deg, rgba(240, 208, 129, 1), rgba(180, 136, 41, 1));
   box-shadow:
-    inset 0 1px 0 rgba(255, 250, 241, 0.2),
-    0 9px 18px rgba(15, 34, 66, 0.16);
+    inset 0 1px 0 rgba(255, 247, 223, 0.56),
+    0 9px 18px rgba(88, 66, 18, 0.16);
   transform: translateY(-0.5px);
 }
 
