@@ -282,31 +282,55 @@ h2 {
 }
 
 .secondary-button {
-  height: 42px;
-  padding: 0 14px;
-  border: 1px solid rgba(134, 95, 17, 0.36);
-  border-radius: 14px;
-  color: #3b2a08;
-  background:
-    linear-gradient(180deg, rgba(227, 190, 101, 0.98), rgba(180, 138, 43, 0.96)),
-    var(--accent);
+  height: 34px;
+  padding: 0 11px;
+  border: 1px solid rgba(180, 138, 43, 0.38);
+  border-radius: 10px;
+  color: var(--ink);
+  background: rgba(255, 250, 241, 0.76);
   box-shadow:
-    inset 0 1px 0 rgba(255, 247, 223, 0.5),
-    0 10px 20px rgba(88, 66, 18, 0.16);
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 2px 8px rgba(18, 38, 73, 0.06);
   cursor: pointer;
-  font-weight: 800;
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
 }
 
 .secondary-button:hover {
-  border-color: rgba(134, 95, 17, 0.48);
-  background:
-    linear-gradient(180deg, rgba(236, 201, 118, 1), rgba(191, 148, 49, 0.98)),
-    var(--accent);
-  transform: translateY(-1px);
+  border-color: rgba(180, 138, 43, 0.62);
+  background: rgba(255, 248, 236, 0.94);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.56),
+    0 6px 14px rgba(18, 38, 73, 0.08);
+  transform: translateY(-0.5px);
 }
 
 .secondary-button:active {
   transform: translateY(0);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.42),
+    0 1px 4px rgba(18, 38, 73, 0.05);
+}
+
+.primary-sidebar-button {
+  height: 38px;
+  padding: 0 13px;
+  border-radius: 11px;
+  border-color: rgba(226, 186, 96, 0.62);
+  color: #fffaf1;
+  background: linear-gradient(180deg, rgba(25, 78, 147, 0.98), rgba(19, 58, 115, 1));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 250, 241, 0.16),
+    0 6px 16px rgba(15, 34, 66, 0.16);
+  font-size: 0.88rem;
+  font-weight: 800;
 }
 
 .sidebar-toggle,
@@ -315,30 +339,26 @@ h2 {
 }
 
 .compact-button {
-  height: 38px;
-  padding: 0 12px;
-  font-size: 0.8rem;
+  height: 30px;
+  padding: 0 9px;
+  font-size: 0.74rem;
 }
 
 .subtle-button {
   color: var(--ink);
-  background:
-    linear-gradient(180deg, rgba(255, 250, 241, 0.94), rgba(244, 234, 213, 0.96)),
-    var(--paper);
+  background: rgba(255, 251, 245, 0.82);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.52),
-    0 8px 18px rgba(33, 45, 73, 0.08);
+    0 2px 8px rgba(33, 45, 73, 0.05);
 }
 
 .danger-button {
   color: #fff7f0;
-  background:
-    linear-gradient(180deg, rgba(181, 86, 62, 0.96), rgba(145, 55, 37, 0.98)),
-    var(--danger);
-  border-color: rgba(127, 47, 31, 0.4);
+  background: linear-gradient(180deg, rgba(173, 74, 52, 0.96), rgba(142, 53, 37, 0.98));
+  border-color: rgba(127, 47, 31, 0.34);
   box-shadow:
     inset 0 1px 0 rgba(255, 226, 214, 0.24),
-    0 10px 20px rgba(127, 47, 31, 0.16);
+    0 4px 12px rgba(127, 47, 31, 0.12);
 }
 
 .session-list {
@@ -661,20 +681,31 @@ input {
 }
 
 .composer button {
-  height: 46px;
-  border: 0;
-  border-radius: 18px;
-  color: #332405;
-  background: linear-gradient(135deg, #e8c575, #a87c1f);
+  height: 38px;
+  border: 1px solid rgba(226, 186, 96, 0.44);
+  border-radius: 11px;
+  color: #fffaf1;
+  background: linear-gradient(180deg, rgba(25, 78, 147, 0.98), rgba(19, 58, 115, 1));
   box-shadow:
-    inset 0 1px 0 rgba(255, 247, 223, 0.52),
-    0 14px 26px rgba(88, 66, 18, 0.18);
+    inset 0 1px 0 rgba(255, 250, 241, 0.16),
+    0 6px 16px rgba(15, 34, 66, 0.14);
   cursor: pointer;
-  font-weight: 900;
+  font-size: 0.88rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
 }
 
 .composer button:hover:not(:disabled) {
-  transform: translateY(-1px);
+  border-color: rgba(239, 206, 126, 0.62);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 250, 241, 0.2),
+    0 9px 18px rgba(15, 34, 66, 0.16);
+  transform: translateY(-0.5px);
 }
 
 .composer button:disabled {

@@ -487,7 +487,7 @@ export default function App() {
             </div>
             <button
               type="button"
-              className="secondary-button"
+              className="secondary-button primary-sidebar-button"
               disabled={isBusy}
               onClick={createSession}
             >
