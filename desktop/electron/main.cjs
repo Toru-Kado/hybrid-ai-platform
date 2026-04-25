@@ -10,6 +10,21 @@ const API_BASE_URL = `http://${API_HOST}:${API_PORT}`;
 let mainWindow;
 let backendProcess;
 
+function iconPath() {
+  return path.join(projectRoot(), "desktop", "assets", "app-icon.png");
+}
+
+function applyApplicationIcon() {
+  const resolvedIconPath = iconPath();
+  if (!fs.existsSync(resolvedIconPath)) {
+    return;
+  }
+
+  if (process.platform === "darwin" && app.dock?.setIcon) {
+    app.dock.setIcon(resolvedIconPath);
+  }
+}
+
 function projectRoot() {
   return app.isPackaged
     ? app.getAppPath()
@@ -108,6 +123,7 @@ async function createWindow() {
     show: false,
     title: "Hybrid AI Platform",
     backgroundColor: "#101816",
+    icon: iconPath(),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -202,6 +218,7 @@ ipcMain.handle("assistant:chat", async (_event, payload) => {
 
 app.whenReady().then(async () => {
   try {
+    applyApplicationIcon();
     startBackend();
     await waitForBackend();
     await createWindow();
