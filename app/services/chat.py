@@ -3,8 +3,9 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
+from typing import Sequence
 
-from app.clients.base import AssistantClient, AssistantResponse
+from app.clients.base import AssistantClient, AssistantResponse, ConversationTurn
 from app.config.settings import GuardrailSettings, Settings
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,7 @@ class ChatService:
         self,
         *,
         prompt: str,
+        conversation: Sequence[ConversationTurn] | None = None,
         system_prompt: str | None = None,
         max_tokens: int | None = None,
         temperature: float | None = None,
@@ -66,6 +68,7 @@ class ChatService:
         started_at = time.perf_counter()
         response = self._client.send_message(
             prompt=prompt,
+            conversation=conversation,
             system_prompt=effective_system_prompt,
             max_tokens=max_tokens,
             temperature=temperature,

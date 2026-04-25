@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, Sequence
 
 from app.config.settings import GuardrailSettings
 
@@ -24,6 +24,12 @@ class AssistantResponse:
     service_tier: str | None
 
 
+@dataclass(frozen=True, slots=True)
+class ConversationTurn:
+    role: str
+    content: str
+
+
 class AssistantClient(Protocol):
     @property
     def provider_name(self) -> str: ...
@@ -41,6 +47,7 @@ class AssistantClient(Protocol):
         self,
         prompt: str,
         *,
+        conversation: Sequence[ConversationTurn] | None = None,
         system_prompt: str | None = None,
         max_tokens: int | None = None,
         temperature: float | None = None,

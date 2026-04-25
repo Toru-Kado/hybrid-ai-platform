@@ -18,15 +18,28 @@ class FakeClient:
     target_kind = "inference_profile"
     target_source = "BEDROCK_INFERENCE_PROFILE_ID"
 
+    def __init__(self) -> None:
+        self.calls = []
+
     def send_message(
         self,
         prompt,
         *,
+        conversation=None,
         system_prompt=None,
         max_tokens=None,
         temperature=None,
         guardrail_settings=None,
     ):
+        self.calls.append(
+            {
+                "prompt": prompt,
+                "conversation": conversation,
+                "system_prompt": system_prompt,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+            }
+        )
         return AssistantResponse(
             text=f"echo: {prompt}",
             stop_reason="end_turn",
@@ -80,7 +93,8 @@ class ServerTests(unittest.TestCase):
     def _start_server(self):
         env_path = self._write_env()
         db_path = self._write_db_path()
-        patcher = mock.patch("app.server.create_runtime_client", return_value=FakeClient())
+        fake_client = FakeClient()
+        patcher = mock.patch("app.server.create_runtime_client", return_value=fake_client)
         patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -94,10 +108,10 @@ class ServerTests(unittest.TestCase):
         thread.start()
         self.addCleanup(server.server_close)
         self.addCleanup(server.shutdown)
-        return server
+        return server, fake_client
 
     def test_health_reports_runtime_target(self):
-        server = self._start_server()
+        server, _client = self._start_server()
         payload = self._json_request(f"{self._server_url(server)}/api/health")
 
         self.assertEqual(payload["status"], "ok")
@@ -106,7 +120,7 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(payload["target_source"], "BEDROCK_INFERENCE_PROFILE_ID")
 
     def test_chat_returns_chat_result_and_session(self):
-        server = self._start_server()
+        server, _client = self._start_server()
         payload = self._json_request(
             f"{self._server_url(server)}/api/chat",
             method="POST",
@@ -120,7 +134,7 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(payload["message"]["role"], "assistant")
 
     def test_chat_persists_messages_to_session_history(self):
-        server = self._start_server()
+        server, fake_client = self._start_server()
         created = self._json_request(
             f"{self._server_url(server)}/api/sessions",
             method="POST",
@@ -141,9 +155,33 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(payload["messages"][0]["content"], "hello history")
         self.assertEqual(payload["messages"][1]["role"], "assistant")
         self.assertEqual(payload["messages"][1]["content"], "echo: hello history")
+        self.assertEqual(len(fake_client.calls[-1]["conversation"]), 1)
+        self.assertEqual(fake_client.calls[-1]["conversation"][0].content, "hello history")
+
+    def test_chat_sends_full_history_to_runtime_client(self):
+        server, fake_client = self._start_server()
+        first = self._json_request(
+            f"{self._server_url(server)}/api/chat",
+            method="POST",
+            payload={"prompt": "first question"},
+        )
+        session_id = first["session"]["session_id"]
+
+        self._json_request(
+            f"{self._server_url(server)}/api/chat",
+            method="POST",
+            payload={"prompt": "follow up", "session_id": session_id},
+        )
+
+        conversation = fake_client.calls[-1]["conversation"]
+        self.assertEqual([turn.role for turn in conversation], ["user", "assistant", "user"])
+        self.assertEqual(
+            [turn.content for turn in conversation],
+            ["first question", "echo: first question", "follow up"],
+        )
 
     def test_sessions_list_returns_newest_first(self):
-        server = self._start_server()
+        server, _client = self._start_server()
         self._json_request(
             f"{self._server_url(server)}/api/chat",
             method="POST",
@@ -161,7 +199,7 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(payload["sessions"][1]["title"], "first session")
 
     def test_chat_rejects_missing_prompt(self):
-        server = self._start_server()
+        server, _client = self._start_server()
         body = json.dumps({"prompt": ""}).encode("utf-8")
         request = urllib.request.Request(
             f"{self._server_url(server)}/api/chat",

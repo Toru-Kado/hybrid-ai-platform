@@ -11,6 +11,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from app.clients import AssistantClientError, create_runtime_client
+from app.clients.base import ConversationTurn
 from app.config.logging import configure_logging
 from app.config.settings import GuardrailSettings, Settings, SettingsError
 from app.session_store import SessionStore
@@ -113,6 +114,10 @@ class AssistantApiHandler(BaseHTTPRequestHandler):
                     "guardrails": guardrails,
                 },
             )
+            conversation = [
+                ConversationTurn(role=message.role, content=message.content)
+                for message in self.state.session_store.get_messages(session.session_id)
+            ]
             guardrail_settings = (
                 self.state.settings.resolve_guardrail_settings(guardrails)
                 if guardrails
@@ -120,6 +125,7 @@ class AssistantApiHandler(BaseHTTPRequestHandler):
             )
             result = self.state.service.chat(
                 prompt=prompt,
+                conversation=conversation,
                 system_prompt=system_prompt,
                 max_tokens=max_tokens,
                 temperature=temperature,
