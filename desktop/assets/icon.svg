@@ -1,0 +1,40 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="120" y1="84" x2="920" y2="952" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#08224B" />
+      <stop offset="1" stop-color="#04142F" />
+    </linearGradient>
+    <linearGradient id="gold" x1="252" y1="210" x2="756" y2="846" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FBE39A" />
+      <stop offset="0.35" stop-color="#FFD76E" />
+      <stop offset="0.68" stop-color="#DAA63A" />
+      <stop offset="1" stop-color="#9B6816" />
+    </linearGradient>
+    <filter id="shadow" x="233" y="182" width="561" height="681" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feOffset dy="12" />
+      <feGaussianBlur stdDeviation="10" />
+      <feColorMatrix type="matrix" values="0 0 0 0 0.00784314 0 0 0 0 0.0392157 0 0 0 0 0.109804 0 0 0 0.28 0" />
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_1_1" />
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_1_1" result="shape" />
+    </filter>
+  </defs>
+
+  <rect x="48" y="48" width="928" height="928" rx="136" fill="url(#bg)" />
+
+  <g filter="url(#shadow)" fill="url(#gold)" stroke="#FFD978" stroke-width="8" stroke-linejoin="round">
+    <rect x="300" y="255" width="46" height="560" rx="22" />
+    <rect x="300" y="255" width="136" height="34" rx="17" />
+    <polygon points="428,255 468,220 507,255 468,290 436,290" />
+    <rect x="438" y="255" width="44" height="330" rx="20" />
+    <rect x="564" y="255" width="44" height="330" rx="20" />
+    <rect x="564" y="255" width="136" height="34" rx="17" />
+    <polygon points="692,255 732,220 771,255 732,290 700,290" />
+    <rect x="690" y="255" width="46" height="610" rx="22" />
+    <path d="M656 742H690V828C690 846 668 856 654 846L640 836V758C640 749.163 647.163 742 656 742Z" />
+
+    <rect x="348" y="320" width="106" height="112" fill="url(#bg)" stroke="#E8AF42" stroke-width="10" />
+    <rect x="348" y="462" width="106" height="112" fill="url(#bg)" stroke="#E8AF42" stroke-width="10" />
+    <rect x="576" y="320" width="106" height="112" fill="url(#bg)" stroke="#E8AF42" stroke-width="10" />
+    <rect x="576" y="462" width="106" height="112" fill="url(#bg)" stroke="#E8AF42" stroke-width="10" />
+  </g>
+</svg>
