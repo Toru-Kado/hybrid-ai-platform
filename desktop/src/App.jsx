@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import appIcon from "../assets/icon.png";
 import {
   DEFAULT_SIDEBAR_WIDTH,
   clampSidebarWidth,
@@ -451,6 +452,11 @@ export default function App() {
             A local desktop client for Anthropic Claude through Amazon Bedrock,
             with SQLite-backed session history and markdown-rendered responses.
           </p>
+        </div>
+        <div className="hero-brandmark">
+          <div className="hero-icon-frame">
+            <img className="hero-icon" src={appIcon} alt="Hybrid AI Platform icon" />
+          </div>
         </div>
       </section>
 

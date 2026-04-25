@@ -9,6 +9,7 @@
     "desktop:dev": "concurrently -k \"npm:desktop:dev:vite\" \"wait-on tcp:5173 && electron .\"",
     "desktop:dev:vite": "vite --host 127.0.0.1",
     "desktop:build": "vite build",
+    "desktop:icons": "electron scripts/build_desktop_icons.cjs",
     "desktop:test": "vitest run",
     "desktop:preview": "vite preview --host 127.0.0.1",
     "desktop:pack": "npm run desktop:build && electron-builder --dir",
@@ -39,6 +40,7 @@
     "asar": false,
     "files": [
       "app/**/*",
+      "desktop/assets/**/*",
       "desktop/dist/**/*",
       "desktop/electron/**/*",
       "pyproject.toml",
@@ -48,14 +50,17 @@
       "output": "release"
     },
     "mac": {
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "icon": "desktop/assets/icon.icns"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "desktop/assets/icon.ico"
     },
     "linux": {
       "target": "AppImage",
-      "category": "Utility"
+      "category": "Utility",
+      "icon": "desktop/assets/app-icon.png"
     }
   }
 }
