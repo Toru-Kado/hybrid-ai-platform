@@ -113,6 +113,12 @@ describe("App layout behavior", () => {
     expect(screen.getByLabelText("System prompt override")).toBeInTheDocument();
   });
 
+  it("shows the app icon in the header chrome", async () => {
+    await renderApp(1440);
+
+    expect(screen.getByAltText("Hybrid AI Platform icon")).toBeInTheDocument();
+  });
+
   it("lets the desktop sidebar resize within the supported bounds", async () => {
     const { container } = await renderApp(1440);
     const layout = container.querySelector(".chat-layout");
