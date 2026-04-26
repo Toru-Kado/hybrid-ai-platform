@@ -722,6 +722,10 @@ input {
   gap: 12px;
 }
 
+.composer-grid[hidden] {
+  display: none;
+}
+
 .composer button {
   height: 38px;
   border: 1px solid rgba(163, 119, 24, 0.42);
