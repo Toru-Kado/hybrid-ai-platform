@@ -682,6 +682,42 @@ h2 {
   min-height: 64px;
 }
 
+.thread-state {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  min-height: 220px;
+  margin: 18px auto;
+  padding: 22px 20px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 252, 247, 0.94), rgba(248, 240, 225, 0.88)),
+    var(--paper);
+  text-align: center;
+  box-shadow: 0 12px 26px rgba(24, 44, 77, 0.05);
+}
+
+.thread-state strong {
+  color: var(--ink);
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.thread-state p {
+  max-width: 38rem;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.thread-state-warning {
+  border-color: rgba(180, 138, 43, 0.28);
+  background:
+    linear-gradient(180deg, rgba(255, 248, 236, 0.98), rgba(247, 236, 212, 0.92)),
+    var(--paper);
+}
+
 .message {
   max-width: 82%;
   margin-bottom: 12px;
@@ -915,6 +951,61 @@ input {
   background: rgba(23, 74, 139, 0.08);
 }
 
+.status-banner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 16px 20px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(23, 74, 139, 0.08);
+}
+
+.status-banner-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.status-banner-copy strong {
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+
+.status-banner-copy p,
+.status-banner-copy span {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.status-banner-copy span {
+  font-size: 0.82rem;
+}
+
+.status-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.status-banner-auth {
+  border-color: rgba(180, 138, 43, 0.34);
+  background: rgba(180, 138, 43, 0.12);
+}
+
+.status-banner-network {
+  border-color: rgba(23, 74, 139, 0.24);
+  background: rgba(23, 74, 139, 0.08);
+}
+
+.status-banner-provider,
+.status-banner-general {
+  border-color: rgba(169, 75, 57, 0.24);
+  background: rgba(169, 75, 57, 0.09);
+}
+
 @media (max-width: 1080px) {
   body {
     overflow: auto;
@@ -971,6 +1062,11 @@ input {
 
   .preferences-grid {
     grid-template-columns: 1fr;
+  }
+
+  .status-banner {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 
@@ -1031,6 +1127,10 @@ input {
 
   .secondary-button,
   .composer button {
+    width: 100%;
+  }
+
+  .status-banner-actions {
     width: 100%;
   }
 
