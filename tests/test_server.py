@@ -8,6 +8,7 @@ import urllib.error
 import urllib.request
 from unittest import mock
 
+from app.clients import AssistantClientError
 from app.clients.base import AssistantResponse
 from app.server import create_server
 
@@ -90,10 +91,10 @@ class ServerTests(unittest.TestCase):
         with urllib.request.urlopen(request) as response:
             return json.loads(response.read().decode("utf-8"))
 
-    def _start_server(self):
+    def _start_server(self, client=None):
         env_path = self._write_env()
         db_path = self._write_db_path()
-        fake_client = FakeClient()
+        fake_client = client or FakeClient()
         patcher = mock.patch("app.server.create_runtime_client", return_value=fake_client)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -212,6 +213,72 @@ class ServerTests(unittest.TestCase):
             urllib.request.urlopen(request)
 
         self.assertEqual(raised.exception.code, 400)
+        raised.exception.close()
+
+    def test_patch_session_renames_session(self):
+        server, _client = self._start_server()
+        created = self._json_request(
+            f"{self._server_url(server)}/api/sessions",
+            method="POST",
+            payload={"title": "Scratchpad"},
+        )
+
+        payload = self._json_request(
+            f"{self._server_url(server)}/api/sessions/{created['session']['session_id']}",
+            method="PATCH",
+            payload={"title": "Jerusalem planning"},
+        )
+
+        self.assertEqual(payload["session"]["title"], "Jerusalem planning")
+
+    def test_delete_session_removes_session(self):
+        server, _client = self._start_server()
+        created = self._json_request(
+            f"{self._server_url(server)}/api/chat",
+            method="POST",
+            payload={"prompt": "delete me"},
+        )
+        session_id = created["session"]["session_id"]
+
+        delete_request = urllib.request.Request(
+            f"{self._server_url(server)}/api/sessions/{session_id}",
+            method="DELETE",
+        )
+        with urllib.request.urlopen(delete_request) as response:
+            self.assertEqual(response.status, 204)
+
+        with self.assertRaises(urllib.error.HTTPError) as raised:
+            urllib.request.urlopen(
+                urllib.request.Request(
+                    f"{self._server_url(server)}/api/sessions/{session_id}",
+                    method="GET",
+                )
+            )
+
+        self.assertEqual(raised.exception.code, 404)
+        raised.exception.close()
+
+    def test_chat_returns_provider_error_details(self):
+        fake_client = FakeClient()
+        fake_client.send_message = mock.Mock(
+            side_effect=AssistantClientError("provider failed", error_code="Boom")
+        )
+        server, _client = self._start_server(fake_client)
+        body = json.dumps({"prompt": "hello"}).encode("utf-8")
+        request = urllib.request.Request(
+            f"{self._server_url(server)}/api/chat",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
+        with self.assertRaises(urllib.error.HTTPError) as raised:
+            urllib.request.urlopen(request)
+
+        response_body = json.loads(raised.exception.read().decode("utf-8"))
+        self.assertEqual(raised.exception.code, 502)
+        self.assertEqual(response_body["error"], "provider failed")
+        self.assertEqual(response_body["error_code"], "Boom")
         raised.exception.close()
 
 
