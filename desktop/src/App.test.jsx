@@ -108,6 +108,12 @@ async function renderApp(width, assistantApi = createAssistantApi()) {
   return { ...view, assistantApi };
 }
 
+function renderAppWithoutWaiting(width, assistantApi = createAssistantApi()) {
+  setViewportWidth(width);
+  window.assistantApi = assistantApi;
+  return { ...render(<App />), assistantApi };
+}
+
 describe("App layout behavior", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -263,7 +269,7 @@ describe("App layout behavior", () => {
 
     expect(confirmSpy).toHaveBeenCalled();
     expect(mountedApi.deleteSession).toHaveBeenCalledWith("session-1");
-    await screen.findByText("Start a session and the full conversation will scroll here.");
+    await screen.findByText("Create a session to begin a new conversation.");
   });
 
   it("exports the active session as markdown", async () => {
@@ -304,9 +310,41 @@ describe("App layout behavior", () => {
     await screen.findByText("Exported JSON transcript.");
   });
 
-  it("restores the draft prompt and shows an error when chat fails", async () => {
+  it("shows a retry affordance when the desktop bootstrap cannot reach the local API", async () => {
     const assistantApi = createAssistantApi();
-    assistantApi.streamChat.mockRejectedValueOnce(new Error("Bedrock request failed."));
+    assistantApi.health.mockRejectedValueOnce(new Error("Could not reach local API."));
+    renderAppWithoutWaiting(1440, assistantApi);
+    const user = userEvent.setup();
+
+    await screen.findByText("Connection problem");
+    expect(screen.getByText(/The local assistant API may still be starting/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Retry connection" }));
+
+    await screen.findByText("Connected");
+    expect(assistantApi.health).toHaveBeenCalledTimes(2);
+  });
+
+  it("offers a session-specific retry when conversation loading fails", async () => {
+    const assistantApi = createAssistantApi();
+    assistantApi.getSession.mockRejectedValueOnce(new Error("Connection refused while loading session."));
+    await renderApp(1440, assistantApi);
+    const user = userEvent.setup();
+
+    await screen.findByText("Could not load this session");
+    await screen.findByText("Conversation unavailable");
+
+    await user.click(screen.getByRole("button", { name: "Retry loading session" }));
+
+    await screen.findByText("The platform routes Claude through Bedrock.");
+    expect(assistantApi.getSession).toHaveBeenCalledTimes(2);
+  });
+
+  it("classifies AWS auth failures clearly and retries the failed prompt", async () => {
+    const assistantApi = createAssistantApi();
+    assistantApi.streamChat.mockRejectedValueOnce(
+      new Error("ExpiredToken: The security token included in the request is expired."),
+    );
     await renderApp(1440, assistantApi);
     const user = userEvent.setup();
 
@@ -314,9 +352,18 @@ describe("App layout behavior", () => {
     await user.type(screen.getByLabelText("Prompt"), "Keep this prompt");
     await user.click(screen.getByRole("button", { name: "Send message" }));
 
-    await screen.findByText("Bedrock request failed.");
-    expect(screen.getByLabelText("Prompt")).toHaveValue("Keep this prompt");
-    expect(screen.queryByText("Streaming response...")).not.toBeInTheDocument();
+    await screen.findByText("AWS authentication needed");
+    expect(
+      screen.getByText(/Refresh the active AWS session, then retry/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry request" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Retry request" }));
+
+    await waitFor(() => {
+      expect(assistantApi.streamChat).toHaveBeenCalledTimes(2);
+    });
+    await screen.findByText("Streaming works in readable chunks.");
   });
 
   it("renders assistant replies from live stream events", async () => {

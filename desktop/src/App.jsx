@@ -100,7 +100,7 @@ export default function App() {
   const [systemPrompt, setSystemPrompt] = useState("");
   const [temperature, setTemperature] = useState(0.2);
   const [maxTokens, setMaxTokens] = useState(1024);
-  const [error, setError] = useState("");
+  const [errorState, setErrorState] = useState(null);
   const [notice, setNotice] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingSessions, setIsLoadingSessions] = useState(true);
@@ -116,6 +116,7 @@ export default function App() {
   const threadRef = useRef(null);
   const resizeCleanupRef = useRef(() => {});
   const previousCompactRef = useRef(readCompactViewport());
+  const mountedRef = useRef(true);
 
   const isBusy = isLoading || streamingMessageId !== null;
   const normalizedSessionFilter = sessionFilter.trim().toLowerCase();
@@ -128,39 +129,7 @@ export default function App() {
   });
 
   useEffect(() => {
-    let isMounted = true;
-
-    async function initialize() {
-      try {
-        const [healthPayload, sessionsPayload] = await Promise.all([
-          api().health(),
-          api().listSessions(),
-        ]);
-        if (!isMounted) {
-          return;
-        }
-        setHealth(healthPayload);
-        const nextSessions = sessionsPayload.sessions || [];
-        setSessions(nextSessions);
-        if (nextSessions.length > 0) {
-          await loadSession(nextSessions[0].session_id, { isMounted });
-        }
-      } catch (caught) {
-        if (isMounted) {
-          setError(caught.message);
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoadingSessions(false);
-        }
-      }
-    }
-
-    initialize();
-
-    return () => {
-      isMounted = false;
-    };
+    initializeApp();
   }, []);
 
   useEffect(() => {
@@ -200,6 +169,7 @@ export default function App() {
 
   useEffect(
     () => () => {
+      mountedRef.current = false;
       resizeCleanupRef.current();
     },
     [],
@@ -212,26 +182,79 @@ export default function App() {
     setRenameTitle(activeSession?.title || "");
   }, [activeSession, isRenamingSession]);
 
-  async function loadSession(sessionId, options = {}) {
-    const { isMounted = true } = options;
+  async function initializeApp(options = {}) {
+    const { preferredSessionId = null } = options;
+    setIsLoadingSessions(true);
+    clearFeedback();
+
+    try {
+      const [healthPayload, sessionsPayload] = await Promise.all([
+        api().health(),
+        api().listSessions(),
+      ]);
+      if (!mountedRef.current) {
+        return;
+      }
+      setHealth(healthPayload);
+      const nextSessions = sessionsPayload.sessions || [];
+      setSessions(nextSessions);
+
+      if (nextSessions.length === 0) {
+        setActiveSession(null);
+        setMessages([]);
+        return;
+      }
+
+      const selectedSessionId =
+        preferredSessionId &&
+        nextSessions.some((session) => session.session_id === preferredSessionId)
+          ? preferredSessionId
+          : nextSessions[0].session_id;
+      await loadSession(selectedSessionId);
+    } catch (caught) {
+      if (!mountedRef.current) {
+        return;
+      }
+      setHealth(null);
+      setSessions([]);
+      setActiveSession(null);
+      setMessages([]);
+      setErrorState(
+        buildErrorState(caught?.message, {
+          context: "bootstrap",
+          retry: { action: "initialize", label: "Retry connection" },
+        }),
+      );
+    } finally {
+      if (mountedRef.current) {
+        setIsLoadingSessions(false);
+      }
+    }
+  }
+
+  async function loadSession(sessionId) {
     setStreamingMessageId(null);
     setIsLoadingHistory(true);
-    setError("");
-    setNotice("");
+    clearFeedback();
     try {
       const payload = await api().getSession(sessionId);
-      if (!isMounted) {
+      if (!mountedRef.current) {
         return;
       }
       setActiveSession(payload.session);
       setMessages(payload.messages || []);
       setIsRenamingSession(false);
     } catch (caught) {
-      if (isMounted) {
-        setError(caught.message);
+      if (mountedRef.current) {
+        setErrorState(
+          buildErrorState(caught?.message, {
+            context: "history",
+            retry: { action: "session", label: "Retry loading session", sessionId },
+          }),
+        );
       }
     } finally {
-      if (isMounted) {
+      if (mountedRef.current) {
         setIsLoadingHistory(false);
       }
     }
@@ -239,8 +262,7 @@ export default function App() {
 
   async function createSession() {
     setStreamingMessageId(null);
-    setError("");
-    setNotice("");
+    clearFeedback();
     try {
       const payload = await api().createSession({});
       const session = payload.session;
@@ -253,7 +275,7 @@ export default function App() {
         setIsSidebarOpen(false);
       }
     } catch (caught) {
-      setError(caught.message);
+      setErrorState(buildErrorState(caught?.message, { context: "session_create" }));
     }
   }
 
@@ -261,9 +283,25 @@ export default function App() {
     event.preventDefault();
     const trimmedPrompt = prompt.trim();
     if (!trimmedPrompt) {
-      setError("Write a prompt first.");
+      setErrorState(
+        buildErrorState("Write a prompt first.", {
+          context: "prompt",
+        }),
+      );
       return;
     }
+
+    await sendPrompt({
+      session_id: activeSession?.session_id,
+      prompt: trimmedPrompt,
+      system_prompt: systemPrompt || undefined,
+      temperature: Number(temperature),
+      max_tokens: Number(maxTokens),
+    });
+  }
+
+  async function sendPrompt(requestPayload) {
+    const trimmedPrompt = requestPayload.prompt.trim();
 
     const pendingUserMessage = {
       message_id: `pending-user-${Date.now()}`,
@@ -285,22 +323,13 @@ export default function App() {
     let sawDelta = false;
 
     setIsLoading(true);
-    setError("");
-    setNotice("");
+    clearFeedback();
     setStreamingMessageId(assistantMessageId);
     setMessages((current) => [...current, pendingUserMessage, pendingAssistantMessage]);
     setPrompt("");
 
     try {
-      await streamChatApi()(
-        {
-          session_id: activeSession?.session_id,
-          prompt: trimmedPrompt,
-          system_prompt: systemPrompt || undefined,
-          temperature: Number(temperature),
-          max_tokens: Number(maxTokens),
-        },
-        {
+      await streamChatApi()(requestPayload, {
           onSession: async (session) => {
             streamedSession = session;
             setActiveSession(session);
@@ -349,8 +378,7 @@ export default function App() {
               ),
             );
           },
-        },
-      );
+        });
     } catch (caught) {
       setMessages((current) =>
         current.filter((item) => {
@@ -366,7 +394,15 @@ export default function App() {
       if (!persistedUserMessage || !streamedSession) {
         setPrompt(trimmedPrompt);
       }
-      setError(caught.message);
+      setErrorState(
+        buildErrorState(caught?.message, {
+          context: "prompt",
+          retry:
+            !persistedUserMessage && !streamedSession
+              ? { action: "prompt", label: "Retry request", payload: requestPayload }
+              : { action: "restore_prompt", label: "Use prompt again", prompt: trimmedPrompt },
+        }),
+      );
     } finally {
       setIsLoading(false);
       setStreamingMessageId(null);
@@ -389,15 +425,14 @@ export default function App() {
       return;
     }
 
-    setError("");
-    setNotice("");
+    clearFeedback();
     try {
       const payload = await api().renameSession(activeSession.session_id, { title: nextTitle });
       setActiveSession(payload.session);
       setSessions((current) => replaceSession(current, payload.session));
       setIsRenamingSession(false);
     } catch (caught) {
-      setError(caught.message);
+      setErrorState(buildErrorState(caught?.message, { context: "session_rename" }));
     }
   }
 
@@ -410,8 +445,7 @@ export default function App() {
     }
 
     setStreamingMessageId(null);
-    setError("");
-    setNotice("");
+    clearFeedback();
     try {
       await api().deleteSession(activeSession.session_id);
       const remainingSessions = sessions.filter(
@@ -426,7 +460,7 @@ export default function App() {
         setMessages([]);
       }
     } catch (caught) {
-      setError(caught.message);
+      setErrorState(buildErrorState(caught?.message, { context: "session_delete" }));
     }
   }
 
@@ -435,8 +469,7 @@ export default function App() {
       return;
     }
 
-    setError("");
-    setNotice("");
+    clearFeedback();
     try {
       const result = await api().saveTranscript({
         format,
@@ -447,7 +480,39 @@ export default function App() {
         setNotice(`Exported ${format === "json" ? "JSON" : "Markdown"} transcript.`);
       }
     } catch (caught) {
-      setError(caught.message);
+      setErrorState(buildErrorState(caught?.message, { context: "export" }));
+    }
+  }
+
+  function clearFeedback() {
+    setErrorState(null);
+    setNotice("");
+  }
+
+  async function retryFromError() {
+    const retry = errorState?.retry;
+    if (!retry) {
+      return;
+    }
+
+    if (retry.action === "initialize") {
+      await initializeApp();
+      return;
+    }
+
+    if (retry.action === "session" && retry.sessionId) {
+      await loadSession(retry.sessionId);
+      return;
+    }
+
+    if (retry.action === "prompt" && retry.payload) {
+      await sendPrompt(retry.payload);
+      return;
+    }
+
+    if (retry.action === "restore_prompt" && retry.prompt) {
+      setPrompt(retry.prompt);
+      setErrorState(null);
     }
   }
 
@@ -673,7 +738,15 @@ export default function App() {
             </div>
           </header>
 
-          {error ? <div className="error">{error}</div> : null}
+          {errorState ? (
+            <ErrorBanner
+              errorState={errorState}
+              onRetry={
+                errorState.retry && errorState.context !== "history" ? retryFromError : null
+              }
+              onDismiss={() => setErrorState(null)}
+            />
+          ) : null}
           {notice ? <div className="notice">{notice}</div> : null}
 
           <section
@@ -759,11 +832,33 @@ export default function App() {
 
           <div className="thread" ref={threadRef}>
             {isLoadingHistory ? (
-              <div className="thread-placeholder">Loading conversation...</div>
+              <ThreadStateCard
+                title="Loading conversation"
+                body="Pulling the saved messages for this session from the local store."
+                tone="neutral"
+              />
+            ) : errorState?.context === "history" ? (
+              <ThreadStateCard
+                title="Conversation unavailable"
+                body="The session list is loaded, but this conversation could not be opened right now."
+                tone="warning"
+                actionLabel={errorState.retry?.label}
+                onAction={errorState.retry ? retryFromError : null}
+              />
             ) : messages.length === 0 ? (
-              <div className="thread-placeholder">
-                Start a session and the full conversation will scroll here.
-              </div>
+              <ThreadStateCard
+                title={activeSession ? "This session is empty" : "Start a new chat"}
+                body={
+                  activeSession
+                    ? "Send the first prompt and the full conversation will build here."
+                    : isLoadingSessions
+                      ? "Connecting to the desktop runtime and local session store."
+                      : "Create a session to begin a new conversation."
+                }
+                tone="neutral"
+                actionLabel={!activeSession && !isLoadingSessions ? "New chat" : null}
+                onAction={!activeSession && !isLoadingSessions ? createSession : null}
+              />
             ) : (
               messages.map((message) => (
                 <MessageBubble
@@ -813,6 +908,46 @@ function RuntimeSummary({ health }) {
         </span>
       </div>
     </div>
+  );
+}
+
+function ErrorBanner({ errorState, onRetry, onDismiss }) {
+  return (
+    <section className={`status-banner status-banner-${errorState.category}`}>
+      <div className="status-banner-copy">
+        <strong>{errorState.title}</strong>
+        <p>{errorState.message}</p>
+        {errorState.hint ? <span>{errorState.hint}</span> : null}
+      </div>
+      <div className="status-banner-actions">
+        {onRetry ? (
+          <button type="button" className="secondary-button compact-button" onClick={onRetry}>
+            {errorState.retry.label}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="secondary-button compact-button subtle-button"
+          onClick={onDismiss}
+        >
+          Dismiss
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function ThreadStateCard({ title, body, tone = "neutral", actionLabel = null, onAction = null }) {
+  return (
+    <section className={`thread-state thread-state-${tone}`}>
+      <strong>{title}</strong>
+      <p>{body}</p>
+      {actionLabel && onAction ? (
+        <button type="button" className="secondary-button compact-button" onClick={onAction}>
+          {actionLabel}
+        </button>
+      ) : null}
+    </section>
   );
 }
 
@@ -869,6 +1004,79 @@ function formatTimestamp(value) {
 
 function formatRuntimeValue(value, fallback) {
   return typeof value === "string" && value.trim() ? value : fallback;
+}
+
+function buildErrorState(message, options = {}) {
+  const context = options.context || "general";
+  const normalizedMessage =
+    typeof message === "string" && message.trim()
+      ? message.trim()
+      : "Unexpected desktop application error.";
+  const category = classifyErrorCategory(normalizedMessage);
+
+  return {
+    context,
+    category,
+    title: errorTitleFor(category, context),
+    message: normalizedMessage,
+    hint: errorHintFor(category, context),
+    retry: options.retry || null,
+  };
+}
+
+function classifyErrorCategory(message) {
+  if (
+    /accessdenied|unauthoriz|expiredtoken|security token|credentials|credential|aws auth|aws sso|sso login|assume role|not authorized/i.test(
+      message,
+    )
+  ) {
+    return "auth";
+  }
+  if (
+    /network|timed out|timeout|could not reach|failed to fetch|econn|connection refused|connection reset|offline|did not start within/i.test(
+      message,
+    )
+  ) {
+    return "network";
+  }
+  if (/bedrock|anthropic|provider|throttl|quota|guardrail|validation|model/i.test(message)) {
+    return "provider";
+  }
+  return "general";
+}
+
+function errorTitleFor(category, context) {
+  if (context === "history" && category !== "auth") {
+    return "Could not load this session";
+  }
+  if (category === "auth") {
+    return "AWS authentication needed";
+  }
+  if (category === "network") {
+    return context === "bootstrap" ? "Connection problem" : "Network problem";
+  }
+  if (category === "provider") {
+    return context === "prompt" ? "Provider request failed" : "Provider unavailable";
+  }
+  if (context === "bootstrap") {
+    return "Desktop startup failed";
+  }
+  return "Something went wrong";
+}
+
+function errorHintFor(category, context) {
+  if (category === "auth") {
+    return "Refresh the active AWS session, then retry. If you use SSO, run aws sso login for the selected profile.";
+  }
+  if (category === "network") {
+    return context === "bootstrap"
+      ? "The local assistant API may still be starting, or the desktop app could not reach it."
+      : "Check the local API connection and retry once the runtime is reachable again.";
+  }
+  if (category === "provider") {
+    return "The request reached the configured provider path, but the model runtime could not complete it.";
+  }
+  return null;
 }
 
 function formatTargetKind(value) {
