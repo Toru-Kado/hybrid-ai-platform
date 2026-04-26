@@ -201,6 +201,30 @@ ipcMain.handle("assistant:deleteSession", async (_event, sessionId) => {
   return null;
 });
 
+ipcMain.handle("assistant:saveTranscript", async (_event, payload) => {
+  const format = payload?.format === "json" ? "json" : "markdown";
+  const content = typeof payload?.content === "string" ? payload.content : "";
+  const suggestedName =
+    typeof payload?.suggestedName === "string" && payload.suggestedName.trim()
+      ? payload.suggestedName.trim()
+      : `session-transcript.${format === "json" ? "json" : "md"}`;
+  const saveDialog = await dialog.showSaveDialog(mainWindow ?? undefined, {
+    title: "Export session transcript",
+    defaultPath: path.join(app.getPath("downloads"), suggestedName),
+    filters:
+      format === "json"
+        ? [{ name: "JSON", extensions: ["json"] }]
+        : [{ name: "Markdown", extensions: ["md", "markdown"] }],
+  });
+
+  if (saveDialog.canceled || !saveDialog.filePath) {
+    return { canceled: true };
+  }
+
+  await fs.promises.writeFile(saveDialog.filePath, content, "utf8");
+  return { canceled: false, path: saveDialog.filePath };
+});
+
 ipcMain.handle("assistant:chat", async (_event, payload) => {
   const response = await fetch(`${API_BASE_URL}/api/chat`, {
     method: "POST",
