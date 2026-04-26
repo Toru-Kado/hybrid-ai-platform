@@ -10,7 +10,9 @@ function createAssistantApi() {
     health: vi.fn().mockResolvedValue({
       provider: "bedrock",
       aws_region: "us-east-1",
-      target_kind: "inference profile",
+      target_kind: "inference_profile",
+      target_id: "us.anthropic.claude-opus-4-6-v1",
+      target_source: "BEDROCK_INFERENCE_PROFILE_ID",
     }),
     listSessions: vi.fn().mockResolvedValue({
       sessions: [
@@ -118,35 +120,54 @@ describe("App layout behavior", () => {
   });
 
   it("collapses the session history behind a toggle on narrow viewports", async () => {
-    await renderApp(900);
+    const { container } = await renderApp(900);
     const user = userEvent.setup();
     const sidebar = screen.getByLabelText("Conversation history");
-    const controlsToggle = screen.getByRole("button", { name: "Show controls" });
+    const preferencesToggle = screen.getByRole("button", { name: "Show preferences" });
+    const preferencesPanel = container.querySelector("#preferences-panel");
 
     expect(sidebar).toHaveAttribute("aria-hidden", "true");
-    expect(controlsToggle).toHaveAttribute("aria-expanded", "false");
+    expect(preferencesToggle).toHaveAttribute("aria-expanded", "false");
+    expect(preferencesPanel).toHaveAttribute("hidden");
 
     await user.click(screen.getByRole("button", { name: "Show sessions" }));
     expect(sidebar).toHaveAttribute("aria-hidden", "false");
 
-    await user.click(controlsToggle);
-    expect(controlsToggle).toHaveAttribute("aria-expanded", "true");
+    await user.click(preferencesToggle);
+    expect(preferencesToggle).toHaveAttribute("aria-expanded", "true");
+    expect(preferencesPanel).not.toHaveAttribute("hidden");
     expect(screen.getByLabelText("System prompt override")).toBeInTheDocument();
   });
 
-  it("actually hides the composer controls when toggled closed", async () => {
-    await renderApp(1440);
+  it("keeps the preferences panel collapsed until opened, then hides it again", async () => {
+    const { container } = await renderApp(1440);
     const user = userEvent.setup();
-    const controlsGrid = document.querySelector(".composer-grid");
+    const preferencesPanel = container.querySelector("#preferences-panel");
+    const toggle = screen.getByRole("button", { name: "Show preferences" });
+
+    expect(preferencesPanel).toHaveAttribute("hidden");
+
+    await user.click(toggle);
 
     expect(screen.getByLabelText("System prompt override")).toBeVisible();
-    expect(controlsGrid).not.toHaveAttribute("hidden");
+    expect(screen.getByText("us.anthropic.claude-opus-4-6-v1")).toBeVisible();
 
-    await user.click(screen.getByRole("button", { name: "Hide controls" }));
+    await user.click(screen.getByRole("button", { name: "Hide preferences" }));
 
-    expect(screen.getByLabelText("System prompt override")).not.toBeVisible();
-    expect(controlsGrid).toHaveAttribute("hidden");
-    expect(screen.getByRole("button", { name: "Show controls" })).toBeInTheDocument();
+    expect(preferencesPanel).toHaveAttribute("hidden");
+    expect(screen.getByRole("button", { name: "Show preferences" })).toBeInTheDocument();
+  });
+
+  it("surfaces runtime target details clearly inside the preferences panel", async () => {
+    await renderApp(1440);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Show preferences" }));
+    const panel = screen.getByLabelText("Preferences and runtime");
+
+    expect(within(panel).getByText("Inference Profile")).toBeInTheDocument();
+    expect(within(panel).getByText("BEDROCK_INFERENCE_PROFILE_ID")).toBeInTheDocument();
+    expect(within(panel).getByText("us.anthropic.claude-opus-4-6-v1")).toBeInTheDocument();
   });
 
   it("shows the app icon in the header chrome", async () => {
