@@ -8,5 +8,6 @@ contextBridge.exposeInMainWorld("assistantApi", {
   renameSession: (sessionId, payload) =>
     ipcRenderer.invoke("assistant:renameSession", sessionId, payload),
   deleteSession: (sessionId) => ipcRenderer.invoke("assistant:deleteSession", sessionId),
+  saveTranscript: (payload) => ipcRenderer.invoke("assistant:saveTranscript", payload),
   chat: (payload) => ipcRenderer.invoke("assistant:chat", payload),
 });

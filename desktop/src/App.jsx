@@ -3,6 +3,11 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import appIcon from "../assets/icon.png";
 import {
+  buildTranscriptContent,
+  buildTranscriptFilename,
+  transcriptFormatConfig,
+} from "./transcript";
+import {
   DEFAULT_SIDEBAR_WIDTH,
   clampSidebarWidth,
   readCompactViewport,
@@ -59,6 +64,17 @@ const fallbackApi = {
       throw new Error(body.error || "Failed to delete session.");
     }
   },
+  saveTranscript: async (payload) => {
+    const config = transcriptFormatConfig(payload?.format);
+    const blob = new Blob([payload?.content || ""], { type: config.mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = payload?.suggestedName || `session-transcript.${config.extension}`;
+    link.click();
+    URL.revokeObjectURL(url);
+    return { canceled: false, path: link.download };
+  },
   chat: async (payload) => {
     const response = await fetch("http://127.0.0.1:8765/api/chat", {
       method: "POST",
@@ -87,11 +103,13 @@ export default function App() {
   const [temperature, setTemperature] = useState(0.2);
   const [maxTokens, setMaxTokens] = useState(1024);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingSessions, setIsLoadingSessions] = useState(true);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isRenamingSession, setIsRenamingSession] = useState(false);
   const [renameTitle, setRenameTitle] = useState("");
+  const [sessionFilter, setSessionFilter] = useState("");
   const [streamingMessageId, setStreamingMessageId] = useState(null);
   const [isCompactLayout, setIsCompactLayout] = useState(() => readCompactViewport());
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => !readCompactViewport());
@@ -104,6 +122,14 @@ export default function App() {
   const revealRunRef = useRef(0);
 
   const isBusy = isLoading || streamingMessageId !== null;
+  const normalizedSessionFilter = sessionFilter.trim().toLowerCase();
+  const filteredSessions = sessions.filter((session) => {
+    if (!normalizedSessionFilter) {
+      return true;
+    }
+    const haystack = `${session.title || ""} ${session.preview || ""}`.toLowerCase();
+    return haystack.includes(normalizedSessionFilter);
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -194,6 +220,7 @@ export default function App() {
     cancelAssistantReveal();
     setIsLoadingHistory(true);
     setError("");
+    setNotice("");
     try {
       const payload = await api().getSession(sessionId);
       if (!isMounted) {
@@ -216,6 +243,7 @@ export default function App() {
   async function createSession() {
     cancelAssistantReveal();
     setError("");
+    setNotice("");
     try {
       const payload = await api().createSession({});
       const session = payload.session;
@@ -251,6 +279,7 @@ export default function App() {
 
     setIsLoading(true);
     setError("");
+    setNotice("");
     setMessages((current) => [...current, pendingUserMessage]);
     setPrompt("");
 
@@ -380,6 +409,7 @@ export default function App() {
     }
 
     setError("");
+    setNotice("");
     try {
       const payload = await api().renameSession(activeSession.session_id, { title: nextTitle });
       setActiveSession(payload.session);
@@ -400,6 +430,7 @@ export default function App() {
 
     cancelAssistantReveal();
     setError("");
+    setNotice("");
     try {
       await api().deleteSession(activeSession.session_id);
       const remainingSessions = sessions.filter(
@@ -412,6 +443,27 @@ export default function App() {
       } else {
         setActiveSession(null);
         setMessages([]);
+      }
+    } catch (caught) {
+      setError(caught.message);
+    }
+  }
+
+  async function exportActiveSession(format) {
+    if (!activeSession) {
+      return;
+    }
+
+    setError("");
+    setNotice("");
+    try {
+      const result = await api().saveTranscript({
+        format,
+        suggestedName: buildTranscriptFilename(activeSession, format),
+        content: buildTranscriptContent(activeSession, messages, format),
+      });
+      if (!result?.canceled) {
+        setNotice(`Exported ${format === "json" ? "JSON" : "Markdown"} transcript.`);
       }
     } catch (caught) {
       setError(caught.message);
@@ -494,13 +546,25 @@ export default function App() {
               New chat
             </button>
           </div>
+          <div className="sidebar-filter">
+            <label htmlFor="session-filter">Search sessions</label>
+            <input
+              id="session-filter"
+              type="search"
+              value={sessionFilter}
+              onChange={(event) => setSessionFilter(event.target.value)}
+              placeholder="Filter by title or preview..."
+            />
+          </div>
           <div className="session-list">
             {isLoadingSessions ? (
               <p className="session-placeholder">Loading saved sessions...</p>
             ) : sessions.length === 0 ? (
               <p className="session-placeholder">No sessions yet. Start a new chat.</p>
+            ) : filteredSessions.length === 0 ? (
+              <p className="session-placeholder">No sessions match this filter.</p>
             ) : (
-              sessions.map((session) => (
+              filteredSessions.map((session) => (
                 <button
                   key={session.session_id}
                   type="button"
@@ -591,6 +655,22 @@ export default function App() {
                         >
                           Delete session
                         </button>
+                        <button
+                          type="button"
+                          className="secondary-button compact-button subtle-button"
+                          disabled={isBusy}
+                          onClick={() => exportActiveSession("markdown")}
+                        >
+                          Export .md
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-button compact-button subtle-button"
+                          disabled={isBusy}
+                          onClick={() => exportActiveSession("json")}
+                        >
+                          Export .json
+                        </button>
                       </div>
                     ) : null}
                   </>
@@ -601,6 +681,7 @@ export default function App() {
           </header>
 
           {error ? <div className="error">{error}</div> : null}
+          {notice ? <div className="notice">{notice}</div> : null}
 
           <div className="thread" ref={threadRef}>
             {isLoadingHistory ? (

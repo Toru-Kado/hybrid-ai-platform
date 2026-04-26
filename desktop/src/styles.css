@@ -258,6 +258,27 @@ h2 {
   border-bottom-color: rgba(255, 250, 241, 0.14);
 }
 
+.sidebar-filter {
+  display: grid;
+  gap: 8px;
+  padding: 12px 16px 8px;
+}
+
+.sidebar-filter label {
+  color: rgba(248, 243, 231, 0.76);
+}
+
+.sidebar-filter input {
+  height: 38px;
+  border-color: rgba(255, 250, 241, 0.18);
+  color: #fffaf1;
+  background: rgba(255, 250, 241, 0.08);
+}
+
+.sidebar-filter input::placeholder {
+  color: rgba(248, 243, 231, 0.52);
+}
+
 .chat-heading,
 .composer-topline {
   display: flex;
@@ -748,6 +769,15 @@ input {
   border-radius: 18px;
   color: #8a3528;
   background: rgba(169, 75, 57, 0.1);
+}
+
+.notice {
+  margin: 16px 20px 0;
+  padding: 12px 16px;
+  border: 1px solid rgba(23, 74, 139, 0.18);
+  border-radius: 16px;
+  color: var(--blue-deep);
+  background: rgba(23, 74, 139, 0.08);
 }
 
 @media (max-width: 1080px) {

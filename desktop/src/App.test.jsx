@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -18,6 +18,11 @@ function createAssistantApi() {
           session_id: "session-1",
           title: "Platform overview",
           preview: "Summarize the hybrid AI platform.",
+        },
+        {
+          session_id: "session-2",
+          title: "Jerusalem notes",
+          preview: "Export and search the saved conversations.",
         },
       ],
     }),
@@ -52,6 +57,7 @@ function createAssistantApi() {
       },
     })),
     deleteSession: vi.fn().mockResolvedValue(undefined),
+    saveTranscript: vi.fn().mockResolvedValue({ canceled: false, path: "/tmp/session.md" }),
     chat: vi.fn().mockResolvedValue({
       session: {
         session_id: "session-1",
@@ -117,6 +123,20 @@ describe("App layout behavior", () => {
     await renderApp(1440);
 
     expect(screen.getByAltText("Hybrid AI Platform icon")).toBeInTheDocument();
+  });
+
+  it("filters saved sessions by title and preview text", async () => {
+    await renderApp(1440);
+    const user = userEvent.setup();
+    const sidebar = screen.getByLabelText("Conversation history");
+
+    expect(within(sidebar).getByText("Platform overview")).toBeInTheDocument();
+    expect(within(sidebar).getByText("Jerusalem notes")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Search sessions"), "jerusalem");
+
+    expect(within(sidebar).queryByText("Platform overview")).not.toBeInTheDocument();
+    expect(within(sidebar).getByText("Jerusalem notes")).toBeInTheDocument();
   });
 
   it("lets the desktop sidebar resize within the supported bounds", async () => {
@@ -193,6 +213,25 @@ describe("App layout behavior", () => {
     expect(confirmSpy).toHaveBeenCalled();
     expect(mountedApi.deleteSession).toHaveBeenCalledWith("session-1");
     await screen.findByText("Start a session and the full conversation will scroll here.");
+  });
+
+  it("exports the active session as markdown", async () => {
+    const { assistantApi } = await renderApp(1440);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Export .md" }));
+
+    await waitFor(() => {
+      expect(assistantApi.saveTranscript).toHaveBeenCalled();
+    });
+    expect(assistantApi.saveTranscript).toHaveBeenCalledWith(
+      expect.objectContaining({
+        format: "markdown",
+        suggestedName: "platform-overview.md",
+        content: expect.stringContaining("The platform routes Claude through Bedrock."),
+      }),
+    );
+    await screen.findByText("Exported Markdown transcript.");
   });
 
   it("reveals assistant replies progressively after the response arrives", async () => {
