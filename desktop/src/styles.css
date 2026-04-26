@@ -283,6 +283,7 @@ h2 {
 
 .sidebar-filter label {
   color: rgba(248, 243, 231, 0.76);
+  text-align: center;
 }
 
 .sidebar-filter input {
