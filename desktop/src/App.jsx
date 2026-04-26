@@ -533,7 +533,7 @@ export default function App() {
           aria-label="Conversation history"
         >
           <div className="sidebar-header">
-            <div>
+            <div className="sidebar-title-block">
               <p className="sidebar-kicker">Sessions</p>
               <h2>Conversation history</h2>
             </div>
