@@ -101,6 +101,44 @@ class SettingsTests(unittest.TestCase):
             with self.assertRaises(SettingsError):
                 Settings.from_env(env_path)
 
+    def test_rejects_arn_in_inference_profile_id(self):
+        env_path = self._write_env(
+            """
+            AWS_REGION=us-east-1
+            BEDROCK_INFERENCE_PROFILE_ID=arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-opus-4-6-v1
+            """
+        )
+
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(SettingsError):
+                Settings.from_env(env_path)
+
+    def test_rejects_non_positive_model_max_tokens(self):
+        env_path = self._write_env(
+            """
+            AWS_REGION=us-east-1
+            BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
+            MODEL_MAX_TOKENS=0
+            """
+        )
+
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(SettingsError):
+                Settings.from_env(env_path)
+
+    def test_rejects_out_of_range_model_temperature(self):
+        env_path = self._write_env(
+            """
+            AWS_REGION=us-east-1
+            BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
+            MODEL_TEMPERATURE=1.5
+            """
+        )
+
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(SettingsError):
+                Settings.from_env(env_path)
+
     def test_allows_anthropic_provider_without_aws_region(self):
         env_path = self._write_env(
             """

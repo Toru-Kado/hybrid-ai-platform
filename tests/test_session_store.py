@@ -78,6 +78,51 @@ class SessionStoreTests(unittest.TestCase):
             self.assertIn("idx_sessions_updated_at", indexes)
             self.assertIn("idx_messages_session_id_id", indexes)
 
+    def test_ensure_session_uses_first_prompt_as_title_for_empty_new_session(self):
+        db_path = self._temp_db_path()
+        store = SessionStore(db_path)
+        session = store.create_session()
+
+        ensured = store.ensure_session(session.session_id, prompt="   First prompt for title   ")
+
+        self.assertEqual(ensured.session_id, session.session_id)
+        self.assertEqual(ensured.title, "First prompt for title")
+
+    def test_delete_session_cascades_messages(self):
+        db_path = self._temp_db_path()
+        store = SessionStore(db_path)
+        session = store.create_session("Scratchpad")
+        message = store.add_message(
+            session_id=session.session_id,
+            role="user",
+            content="hello history",
+            metadata={"source": "test"},
+        )
+
+        store.delete_session(session.session_id)
+
+        with self.assertRaises(KeyError):
+            store.get_session(session.session_id)
+        with self.assertRaises(KeyError):
+            store.get_message(message.message_id)
+
+    def test_add_message_round_trips_metadata_and_preview(self):
+        db_path = self._temp_db_path()
+        store = SessionStore(db_path)
+        session = store.create_session("Scratchpad")
+
+        message = store.add_message(
+            session_id=session.session_id,
+            role="assistant",
+            content="## Reply",
+            metadata={"request_id": "req-123", "output_tokens": 42},
+        )
+        refreshed = store.get_session(session.session_id)
+
+        self.assertEqual(message.metadata, {"request_id": "req-123", "output_tokens": 42})
+        self.assertEqual(refreshed.message_count, 1)
+        self.assertEqual(refreshed.preview, "## Reply")
+
 
 if __name__ == "__main__":
     unittest.main()

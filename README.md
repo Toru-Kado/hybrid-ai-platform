@@ -90,6 +90,22 @@ Useful desktop targets:
 - `make desktop-build`: build the React renderer into `desktop/dist/`
 - `make desktop-pack`: build React and create an unpacked Electron app directory
 
+## Testing
+
+Core local test commands from the repo root:
+
+```bash
+python3 -m unittest discover -s tests
+npm run desktop:test
+python3 -m compileall app tests
+```
+
+Useful narrower checks:
+
+- `python3 -m unittest tests.test_server` for the local API server contract
+- `python3 -m unittest tests.test_session_store tests.test_chat_service` for session persistence and context handling
+- `npm run desktop:build` for the Electron/React renderer build
+
 Local database details:
 
 - packaged desktop default: Electron user-data directory, `assistant.db`

@@ -249,6 +249,40 @@ describe("App layout behavior", () => {
     await screen.findByText("Exported Markdown transcript.");
   });
 
+  it("exports the active session as json", async () => {
+    const { assistantApi } = await renderApp(1440);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Export .json" }));
+
+    await waitFor(() => {
+      expect(assistantApi.saveTranscript).toHaveBeenCalled();
+    });
+    expect(assistantApi.saveTranscript).toHaveBeenCalledWith(
+      expect.objectContaining({
+        format: "json",
+        suggestedName: "platform-overview.json",
+        content: expect.stringContaining("\"title\": \"Platform overview\""),
+      }),
+    );
+    await screen.findByText("Exported JSON transcript.");
+  });
+
+  it("restores the draft prompt and shows an error when chat fails", async () => {
+    const assistantApi = createAssistantApi();
+    assistantApi.chat.mockRejectedValueOnce(new Error("Bedrock request failed."));
+    await renderApp(1440, assistantApi);
+    const user = userEvent.setup();
+
+    await user.clear(screen.getByLabelText("Prompt"));
+    await user.type(screen.getByLabelText("Prompt"), "Keep this prompt");
+    await user.click(screen.getByRole("button", { name: "Send message" }));
+
+    await screen.findByText("Bedrock request failed.");
+    expect(screen.getByLabelText("Prompt")).toHaveValue("Keep this prompt");
+    expect(screen.queryByText("Streaming response...")).not.toBeInTheDocument();
+  });
+
   it("reveals assistant replies progressively after the response arrives", async () => {
     const { assistantApi } = await renderApp(1440);
     const user = userEvent.setup();
