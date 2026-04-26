@@ -10,6 +10,9 @@ from app.config.settings import GuardrailSettings, Settings
 
 logger = logging.getLogger(__name__)
 
+MAX_CONTEXT_TURNS = 24
+MAX_CONTEXT_CHARS = 24_000
+
 
 @dataclass(slots=True)
 class ChatResult:
@@ -65,10 +68,11 @@ class ChatService:
         guardrail_settings: GuardrailSettings | None = None,
     ) -> ChatResult:
         effective_system_prompt = system_prompt or self._settings.assistant_system_prompt
+        trimmed_conversation = _trim_conversation(conversation)
         started_at = time.perf_counter()
         response = self._client.send_message(
             prompt=prompt,
-            conversation=conversation,
+            conversation=trimmed_conversation,
             system_prompt=effective_system_prompt,
             max_tokens=max_tokens,
             temperature=temperature,
@@ -107,6 +111,38 @@ class ChatService:
         )
 
         return result
+
+
+def _trim_conversation(
+    conversation: Sequence[ConversationTurn] | None,
+    *,
+    max_turns: int = MAX_CONTEXT_TURNS,
+    max_chars: int = MAX_CONTEXT_CHARS,
+) -> list[ConversationTurn] | None:
+    if not conversation:
+        return None
+
+    retained: list[ConversationTurn] = []
+    total_chars = 0
+
+    for turn in reversed(conversation):
+        content = turn.content.strip()
+        if not content:
+            continue
+
+        next_chars = total_chars + len(content)
+        if retained and (len(retained) >= max_turns or next_chars > max_chars):
+            break
+
+        retained.append(ConversationTurn(role=turn.role, content=content))
+        total_chars = next_chars
+
+    retained.reverse()
+
+    while len(retained) > 1 and retained[0].role == "assistant":
+        retained.pop(0)
+
+    return retained or None
 
 
 def _build_chat_result(
