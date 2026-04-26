@@ -87,6 +87,10 @@ class AssistantApiHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.CREATED, {"session": session.to_dict(), "messages": []})
             return
 
+        if path == "/api/chat/stream":
+            self._handle_chat_stream()
+            return
+
         if path != "/api/chat":
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "Not found"})
             return
@@ -165,6 +169,97 @@ class AssistantApiHandler(BaseHTTPRequestHandler):
         persisted_session = self.state.session_store.get_session(session.session_id)
         self._send_json(
             HTTPStatus.OK,
+            {
+                **result.to_dict(),
+                "session": persisted_session.to_dict(),
+                "message": assistant_message.to_dict(),
+            },
+        )
+
+    def _handle_chat_stream(self) -> None:
+        try:
+            payload = self._read_json_body()
+            prompt = _required_string(payload, "prompt")
+            session_id = _optional_session_id(payload, "session_id")
+            system_prompt = _optional_string(payload, "system_prompt")
+            max_tokens = _optional_positive_int(payload, "max_tokens")
+            temperature = _optional_temperature(payload, "temperature")
+            guardrails = _optional_guardrail_mode(payload, "guardrails")
+        except ValueError as exc:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+            return
+
+        try:
+            session = self.state.session_store.ensure_session(session_id, prompt=prompt)
+            user_message = self.state.session_store.add_message(
+                session_id=session.session_id,
+                role="user",
+                content=prompt,
+                metadata={
+                    "system_prompt": system_prompt,
+                    "guardrails": guardrails,
+                },
+            )
+            conversation = [
+                ConversationTurn(role=message.role, content=message.content)
+                for message in self.state.session_store.get_messages(session.session_id)
+            ]
+            guardrail_settings = (
+                self.state.settings.resolve_guardrail_settings(guardrails)
+                if guardrails
+                else self.state.default_guardrails
+            )
+        except SettingsError as exc:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+            return
+        except KeyError as exc:
+            self._send_json(HTTPStatus.NOT_FOUND, {"error": str(exc)})
+            return
+
+        self._start_event_stream()
+        self._send_sse_event(
+            "session",
+            {"session": self.state.session_store.get_session(session.session_id).to_dict()},
+        )
+        self._send_sse_event("user_message", {"message": user_message.to_dict()})
+
+        try:
+            result = self._stream_chat_result(
+                prompt=prompt,
+                conversation=conversation,
+                system_prompt=system_prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                guardrail_settings=guardrail_settings,
+            )
+        except AssistantClientError as exc:
+            logger.warning("Provider invocation failed", exc_info=True)
+            self._send_sse_event(
+                "error",
+                {
+                    "error": str(exc),
+                    "error_code": exc.error_code,
+                    "provider": self.state.settings.ai_provider,
+                },
+            )
+            return
+        except Exception:
+            logger.exception("Unexpected API failure")
+            self._send_sse_event(
+                "error",
+                {"error": "Unexpected application error."},
+            )
+            return
+
+        assistant_message = self.state.session_store.add_message(
+            session_id=session.session_id,
+            role="assistant",
+            content=result.response_text,
+            metadata=result.to_dict(),
+        )
+        persisted_session = self.state.session_store.get_session(session.session_id)
+        self._send_sse_event(
+            "complete",
             {
                 **result.to_dict(),
                 "session": persisted_session.to_dict(),
@@ -272,9 +367,52 @@ class AssistantApiHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _send_common_headers(self) -> None:
-        self.send_header("Access-Control-Allow-Origin", "http://localhost:5173")
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
+    def _start_event_stream(self) -> None:
+        self.close_connection = True
+        self.send_response(HTTPStatus.OK)
+        self._send_common_headers()
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "close")
+        self.send_header("Content-Type", "text/event-stream")
+        self.end_headers()
+
+    def _send_sse_event(self, event_name: str, payload: dict[str, Any]) -> None:
+        body = f"event: {event_name}\ndata: {json.dumps(payload)}\n\n".encode("utf-8")
+        self.wfile.write(body)
+        self.wfile.flush()
+
+    def _stream_chat_result(
+        self,
+        *,
+        prompt: str,
+        conversation: list[ConversationTurn],
+        system_prompt: str | None,
+        max_tokens: int | None,
+        temperature: float | None,
+        guardrail_settings: GuardrailSettings | None,
+    ):
+        result = None
+        for event in self.state.service.stream_chat(
+            prompt=prompt,
+            conversation=conversation,
+            system_prompt=system_prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            guardrail_settings=guardrail_settings,
+        ):
+            if event.type == "text_delta" and event.text is not None:
+                self._send_sse_event("delta", {"text": event.text})
+                continue
+            if event.type == "complete" and event.result is not None:
+                result = event.result
+
+        if result is None:
+            raise RuntimeError("Provider stream ended without a final response.")
+        return result
 
 
 class AssistantApiServer(ThreadingHTTPServer):

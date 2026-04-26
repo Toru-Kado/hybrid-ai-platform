@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol, Sequence
+from typing import Iterator, Literal, Protocol, Sequence
 
 from app.config.settings import GuardrailSettings
 
@@ -30,6 +30,13 @@ class ConversationTurn:
     content: str
 
 
+@dataclass(frozen=True, slots=True)
+class AssistantStreamEvent:
+    type: Literal["text_delta", "complete"]
+    text: str | None = None
+    response: AssistantResponse | None = None
+
+
 class AssistantClient(Protocol):
     @property
     def provider_name(self) -> str: ...
@@ -53,3 +60,14 @@ class AssistantClient(Protocol):
         temperature: float | None = None,
         guardrail_settings: GuardrailSettings | None = None,
     ) -> AssistantResponse: ...
+
+    def stream_message(
+        self,
+        prompt: str,
+        *,
+        conversation: Sequence[ConversationTurn] | None = None,
+        system_prompt: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        guardrail_settings: GuardrailSettings | None = None,
+    ) -> Iterator[AssistantStreamEvent]: ...

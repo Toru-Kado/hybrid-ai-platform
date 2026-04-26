@@ -75,22 +75,20 @@ const fallbackApi = {
     URL.revokeObjectURL(url);
     return { canceled: false, path: link.download };
   },
-  chat: async (payload) => {
-    const response = await fetch("http://127.0.0.1:8765/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const body = await response.json();
-    if (!response.ok) {
-      throw new Error(body.error || "Assistant request failed.");
-    }
-    return body;
+  streamChat: async (payload, handlers) => {
+    return streamChatOverHttp("http://127.0.0.1:8765/api/chat/stream", payload, handlers);
   },
 };
 
 function api() {
   return window.assistantApi || fallbackApi;
+}
+
+function streamChatApi() {
+  if (window.assistantApi?.streamChat) {
+    return window.assistantApi.streamChat;
+  }
+  return fallbackApi.streamChat;
 }
 
 export default function App() {
@@ -118,8 +116,6 @@ export default function App() {
   const threadRef = useRef(null);
   const resizeCleanupRef = useRef(() => {});
   const previousCompactRef = useRef(readCompactViewport());
-  const revealTimerRef = useRef(null);
-  const revealRunRef = useRef(0);
 
   const isBusy = isLoading || streamingMessageId !== null;
   const normalizedSessionFilter = sessionFilter.trim().toLowerCase();
@@ -203,7 +199,6 @@ export default function App() {
   useEffect(
     () => () => {
       resizeCleanupRef.current();
-      cancelAssistantReveal();
     },
     [],
   );
@@ -217,7 +212,7 @@ export default function App() {
 
   async function loadSession(sessionId, options = {}) {
     const { isMounted = true } = options;
-    cancelAssistantReveal();
+    setStreamingMessageId(null);
     setIsLoadingHistory(true);
     setError("");
     setNotice("");
@@ -241,7 +236,7 @@ export default function App() {
   }
 
   async function createSession() {
-    cancelAssistantReveal();
+    setStreamingMessageId(null);
     setError("");
     setNotice("");
     try {
@@ -276,124 +271,108 @@ export default function App() {
       metadata: null,
     };
     const assistantMessageId = `assistant-${Date.now()}`;
+    const pendingAssistantMessage = {
+      message_id: assistantMessageId,
+      role: "assistant",
+      content: "",
+      created_at: new Date().toISOString(),
+      metadata: { is_streaming: true },
+    };
+    let persistedUserMessage = null;
+    let streamedSession = null;
+    let sawDelta = false;
 
     setIsLoading(true);
     setError("");
     setNotice("");
-    setMessages((current) => [...current, pendingUserMessage]);
+    setStreamingMessageId(assistantMessageId);
+    setMessages((current) => [...current, pendingUserMessage, pendingAssistantMessage]);
     setPrompt("");
 
     try {
-      const payload = await api().chat({
-        session_id: activeSession?.session_id,
-        prompt: trimmedPrompt,
-        system_prompt: systemPrompt || undefined,
-        temperature: Number(temperature),
-        max_tokens: Number(maxTokens),
-      });
-      const session = payload.session;
-      setActiveSession(session);
-      setSessions((current) => mergeSession(current, session));
-      const persistedUserMessage = {
-        ...pendingUserMessage,
-        message_id: `user-${session.session_id}-${Date.now()}`,
-      };
-      setMessages((current) => [
-        ...current.filter((item) => item.message_id !== pendingUserMessage.message_id),
-        persistedUserMessage,
+      await streamChatApi()(
         {
-          ...payload.message,
-          message_id: assistantMessageId,
-          content: "",
-          metadata: {
-            ...(payload.message.metadata || {}),
-            is_streaming: true,
+          session_id: activeSession?.session_id,
+          prompt: trimmedPrompt,
+          system_prompt: systemPrompt || undefined,
+          temperature: Number(temperature),
+          max_tokens: Number(maxTokens),
+        },
+        {
+          onSession: async (session) => {
+            streamedSession = session;
+            setActiveSession(session);
+            setSessions((current) => mergeSession(current, session));
+          },
+          onUserMessage: async (message) => {
+            persistedUserMessage = message;
+            setMessages((current) =>
+              current.map((item) =>
+                item.message_id === pendingUserMessage.message_id ? message : item,
+              ),
+            );
+          },
+          onTextDelta: async (text) => {
+            if (!sawDelta) {
+              sawDelta = true;
+              setIsLoading(false);
+            }
+            setMessages((current) =>
+              current.map((item) =>
+                item.message_id === assistantMessageId
+                  ? {
+                      ...item,
+                      content: `${item.content || ""}${text}`,
+                      metadata: {
+                        ...(item.metadata || {}),
+                        is_streaming: true,
+                      },
+                    }
+                  : item,
+              ),
+            );
+          },
+          onComplete: async (payload) => {
+            const session = payload.session;
+            setActiveSession(session);
+            setSessions((current) => mergeSession(current, session));
+            setMessages((current) =>
+              current.map((item) =>
+                item.message_id === assistantMessageId
+                  ? {
+                      ...payload.message,
+                      content: payload.message.content || item.content,
+                    }
+                  : item,
+              ),
+            );
           },
         },
-      ]);
-      startAssistantReveal({
-        ...payload.message,
-        message_id: assistantMessageId,
-      });
+      );
     } catch (caught) {
       setMessages((current) =>
-        current.filter((item) => item.message_id !== pendingUserMessage.message_id),
+        current.filter((item) => {
+          if (item.message_id === assistantMessageId) {
+            return false;
+          }
+          if (!persistedUserMessage && item.message_id === pendingUserMessage.message_id) {
+            return false;
+          }
+          return true;
+        }),
       );
-      setPrompt(trimmedPrompt);
+      if (!persistedUserMessage || !streamedSession) {
+        setPrompt(trimmedPrompt);
+      }
       setError(caught.message);
     } finally {
       setIsLoading(false);
+      setStreamingMessageId(null);
     }
   }
 
   function toggleSidebar() {
     setIsSidebarOpen((current) => !current);
-  }
-
-  function cancelAssistantReveal() {
-    revealRunRef.current += 1;
-    if (revealTimerRef.current) {
-      window.clearInterval(revealTimerRef.current);
-      revealTimerRef.current = null;
-    }
-    setStreamingMessageId(null);
-  }
-
-  function startAssistantReveal(message) {
-    cancelAssistantReveal();
-    const content = message.content || "";
-    if (!content) {
-      setMessages((current) =>
-        current.map((item) =>
-          item.message_id === message.message_id
-            ? { ...message, metadata: message.metadata || null }
-            : item,
-        ),
-      );
-      return;
-    }
-
-    const runId = revealRunRef.current;
-    const chunkSize = Math.max(6, Math.ceil(content.length / 30));
-    let nextLength = 0;
-    setStreamingMessageId(message.message_id);
-
-    function applyChunk() {
-      if (runId !== revealRunRef.current) {
-        return;
-      }
-      nextLength = Math.min(content.length, nextLength + chunkSize);
-      const isComplete = nextLength >= content.length;
-      setMessages((current) =>
-        current.map((item) =>
-          item.message_id === message.message_id
-            ? {
-                ...message,
-                content: content.slice(0, nextLength),
-                metadata: isComplete
-                  ? message.metadata || null
-                  : {
-                      ...(message.metadata || {}),
-                      is_streaming: true,
-                    },
-              }
-            : item,
-        ),
-      );
-      if (isComplete) {
-        if (revealTimerRef.current) {
-          window.clearInterval(revealTimerRef.current);
-          revealTimerRef.current = null;
-        }
-        setStreamingMessageId(null);
-      }
-    }
-
-    applyChunk();
-    if (content.length <= chunkSize) {
-      return;
-    }
-    revealTimerRef.current = window.setInterval(applyChunk, 24);
   }
 
   async function submitRenameSession(event) {
@@ -428,7 +407,7 @@ export default function App() {
       return;
     }
 
-    cancelAssistantReveal();
+    setStreamingMessageId(null);
     setError("");
     setNotice("");
     try {
@@ -828,4 +807,93 @@ function formatTimestamp(value) {
   } catch (_error) {
     return "";
   }
+}
+
+async function streamChatOverHttp(url, payload, handlers = {}) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const body = await response.json();
+    throw new Error(body.error || "Assistant request failed.");
+  }
+
+  if (!response.body) {
+    throw new Error("Streaming is not available in this environment.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+    const chunks = buffer.split("\n\n");
+    buffer = chunks.pop() || "";
+
+    for (const chunk of chunks) {
+      const event = parseSseChunk(chunk);
+      if (!event) {
+        continue;
+      }
+      if (event.type === "session" && event.payload?.session) {
+        await handlers.onSession?.(event.payload.session);
+        continue;
+      }
+      if (event.type === "user_message" && event.payload?.message) {
+        await handlers.onUserMessage?.(event.payload.message);
+        continue;
+      }
+      if (event.type === "delta" && typeof event.payload?.text === "string") {
+        await handlers.onTextDelta?.(event.payload.text);
+        continue;
+      }
+      if (event.type === "complete" && event.payload) {
+        await handlers.onComplete?.(event.payload);
+        return event.payload;
+      }
+      if (event.type === "error") {
+        throw new Error(event.payload?.error || "Assistant request failed.");
+      }
+    }
+
+    if (done) {
+      break;
+    }
+  }
+
+  throw new Error("Assistant stream ended unexpectedly.");
+}
+
+function parseSseChunk(chunk) {
+  const lines = chunk.split("\n");
+  let type = "message";
+  const dataLines = [];
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    if (!line) {
+      continue;
+    }
+    if (line.startsWith("event:")) {
+      type = line.slice("event:".length).trim() || "message";
+      continue;
+    }
+    if (line.startsWith("data:")) {
+      dataLines.push(line.slice("data:".length).trimStart());
+    }
+  }
+
+  if (dataLines.length === 0) {
+    return null;
+  }
+
+  return {
+    type,
+    payload: JSON.parse(dataLines.join("\n")),
+  };
 }

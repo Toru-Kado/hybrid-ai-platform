@@ -1,7 +1,7 @@
 import unittest
 from types import SimpleNamespace
 
-from app.clients.base import AssistantResponse, ConversationTurn
+from app.clients.base import AssistantResponse, AssistantStreamEvent, ConversationTurn
 from app.services.chat import ChatService, MAX_CONTEXT_CHARS, MAX_CONTEXT_TURNS
 
 
@@ -40,6 +40,40 @@ class FakeClient:
             usage_output_tokens=1,
             request_id="req-test",
             service_tier=None,
+        )
+
+    def stream_message(
+        self,
+        prompt,
+        *,
+        conversation=None,
+        system_prompt=None,
+        max_tokens=None,
+        temperature=None,
+        guardrail_settings=None,
+    ):
+        self.calls.append(
+            {
+                "prompt": prompt,
+                "conversation": conversation,
+                "system_prompt": system_prompt,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "stream": True,
+            }
+        )
+        yield AssistantStreamEvent(type="text_delta", text="hello ")
+        yield AssistantStreamEvent(type="text_delta", text="world")
+        yield AssistantStreamEvent(
+            type="complete",
+            response=AssistantResponse(
+                text="hello world",
+                stop_reason="end_turn",
+                usage_input_tokens=1,
+                usage_output_tokens=2,
+                request_id="req-stream",
+                service_tier=None,
+            ),
         )
 
 
@@ -88,6 +122,22 @@ class ChatServiceTests(unittest.TestCase):
         self.assertEqual(trimmed[0].role, "user")
         self.assertEqual(trimmed[-1].role, "user")
         self.assertTrue(trimmed[-1].content.startswith("latest prompt"))
+
+    def test_stream_chat_yields_text_deltas_and_complete_result(self):
+        service, client = self._service()
+
+        events = list(
+            service.stream_chat(
+                prompt="hello world",
+                conversation=[ConversationTurn(role="user", content="hello world")],
+            )
+        )
+
+        self.assertEqual([event.type for event in events], ["text_delta", "text_delta", "complete"])
+        self.assertEqual(events[0].text, "hello ")
+        self.assertEqual(events[1].text, "world")
+        self.assertEqual(events[-1].result.response_text, "hello world")
+        self.assertTrue(client.calls[-1]["stream"])
 
 
 if __name__ == "__main__":
