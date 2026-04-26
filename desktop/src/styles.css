@@ -255,7 +255,24 @@ h2 {
 }
 
 .sidebar-header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: flex-end;
   border-bottom-color: rgba(255, 250, 241, 0.14);
+}
+
+.sidebar-header::before {
+  content: "";
+}
+
+.sidebar-title-block {
+  grid-column: 2;
+  text-align: center;
+}
+
+.sidebar-header .primary-sidebar-button {
+  grid-column: 3;
+  justify-self: end;
 }
 
 .sidebar-filter {
@@ -266,6 +283,7 @@ h2 {
 
 .sidebar-filter label {
   color: rgba(248, 243, 231, 0.76);
+  text-align: center;
 }
 
 .sidebar-filter input {
