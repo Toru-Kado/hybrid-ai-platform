@@ -119,6 +119,21 @@ describe("App layout behavior", () => {
     expect(screen.getByLabelText("System prompt override")).toBeInTheDocument();
   });
 
+  it("actually hides the composer controls when toggled closed", async () => {
+    await renderApp(1440);
+    const user = userEvent.setup();
+    const controlsGrid = document.querySelector(".composer-grid");
+
+    expect(screen.getByLabelText("System prompt override")).toBeVisible();
+    expect(controlsGrid).not.toHaveAttribute("hidden");
+
+    await user.click(screen.getByRole("button", { name: "Hide controls" }));
+
+    expect(screen.getByLabelText("System prompt override")).not.toBeVisible();
+    expect(controlsGrid).toHaveAttribute("hidden");
+    expect(screen.getByRole("button", { name: "Show controls" })).toBeInTheDocument();
+  });
+
   it("shows the app icon in the header chrome", async () => {
     await renderApp(1440);
 
