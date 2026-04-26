@@ -255,6 +255,7 @@ h2 {
 }
 
 .sidebar-header {
+  align-items: flex-end;
   border-bottom-color: rgba(255, 250, 241, 0.14);
 }
 
