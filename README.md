@@ -90,6 +90,18 @@ Useful desktop targets:
 - `make desktop-build`: build the React renderer into `desktop/dist/`
 - `make desktop-pack`: build React and create an unpacked Electron app directory
 
+Local database details:
+
+- packaged desktop default: Electron user-data directory, `assistant.db`
+- standalone server default: `.local/assistant.db`
+- override path: set `HYBRID_AI_DB_PATH` or pass `--db-path` to `python -m app.server`
+
+The SQLite session store tracks schema state with `PRAGMA user_version`.
+
+- first run initializes the current schema automatically
+- older versionless databases migrate forward when opened
+- current migrations preserve existing `sessions` and `messages` rows and add required indexes
+
 For packaged desktop builds, the app expects a Python runtime and project environment to be available. Set `HYBRID_AI_PYTHON`, `HYBRID_AI_ENV_FILE`, or `HYBRID_AI_DB_PATH` when you need to point Electron at a non-default Python executable, env file, or SQLite database path.
 
 ## CDK Setup
