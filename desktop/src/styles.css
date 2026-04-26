@@ -1,7 +1,13 @@
 :root {
   color: #13294b;
   background: #efe6d4;
-  font-family: "Optima", "Avenir Next", "Trebuchet MS", sans-serif;
+  font-family:
+    "SF Pro Text",
+    "Aptos",
+    "Segoe UI Variable Text",
+    "Segoe UI",
+    "Helvetica Neue",
+    sans-serif;
   font-synthesis: none;
   text-rendering: geometricPrecision;
   --ink: #13294b;
@@ -146,18 +152,33 @@ textarea {
 h1 {
   margin: 0;
   color: var(--ink);
-  font-family: "Baskerville", "Palatino Linotype", "Book Antiqua", serif;
+  font-family:
+    "SF Pro Display",
+    "Aptos Display",
+    "Segoe UI Variable Display",
+    "Segoe UI",
+    "Helvetica Neue",
+    sans-serif;
   font-size: clamp(1.8rem, 3vw, 2.8rem);
-  line-height: 0.98;
-  letter-spacing: -0.08em;
+  font-weight: 700;
+  line-height: 0.94;
+  letter-spacing: -0.05em;
 }
 
 h2 {
   margin: 0;
   color: var(--ink);
-  font-family: "Baskerville", "Palatino Linotype", "Book Antiqua", serif;
-  font-size: 1.6rem;
-  line-height: 1;
+  font-family:
+    "SF Pro Display",
+    "Aptos Display",
+    "Segoe UI Variable Display",
+    "Segoe UI",
+    "Helvetica Neue",
+    sans-serif;
+  font-size: 1.45rem;
+  font-weight: 650;
+  line-height: 1.02;
+  letter-spacing: -0.035em;
 }
 
 .lede {
