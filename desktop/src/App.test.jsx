@@ -58,19 +58,34 @@ function createAssistantApi() {
     })),
     deleteSession: vi.fn().mockResolvedValue(undefined),
     saveTranscript: vi.fn().mockResolvedValue({ canceled: false, path: "/tmp/session.md" }),
-    chat: vi.fn().mockResolvedValue({
-      session: {
+    streamChat: vi.fn().mockImplementation(async (_payload, handlers = {}) => {
+      const session = {
         session_id: "session-1",
         title: "Platform overview",
         preview: "Summarize the hybrid AI platform.",
-      },
-      message: {
+      };
+      const userMessage = {
+        message_id: "message-user-2",
+        role: "user",
+        content: "Give me a progress demo",
+        created_at: "2026-04-23T08:01:00.000Z",
+        metadata: null,
+      };
+      const message = {
         message_id: "message-2",
         role: "assistant",
         content: "Streaming works in readable chunks.",
         created_at: "2026-04-23T08:02:00.000Z",
         metadata: { request_id: "req-2", output_tokens: 24, latency_ms: 48 },
-      },
+      };
+      const completePayload = { session, message };
+
+      await handlers.onSession?.(session);
+      await handlers.onUserMessage?.(userMessage);
+      await handlers.onTextDelta?.("Streaming works ");
+      await handlers.onTextDelta?.("in readable chunks.");
+      await handlers.onComplete?.(completePayload);
+      return completePayload;
     }),
   };
 }
@@ -270,7 +285,7 @@ describe("App layout behavior", () => {
 
   it("restores the draft prompt and shows an error when chat fails", async () => {
     const assistantApi = createAssistantApi();
-    assistantApi.chat.mockRejectedValueOnce(new Error("Bedrock request failed."));
+    assistantApi.streamChat.mockRejectedValueOnce(new Error("Bedrock request failed."));
     await renderApp(1440, assistantApi);
     const user = userEvent.setup();
 
@@ -283,8 +298,44 @@ describe("App layout behavior", () => {
     expect(screen.queryByText("Streaming response...")).not.toBeInTheDocument();
   });
 
-  it("reveals assistant replies progressively after the response arrives", async () => {
-    const { assistantApi } = await renderApp(1440);
+  it("renders assistant replies from live stream events", async () => {
+    const gate = { promise: null, resolve: null };
+    gate.promise = new Promise((resolve) => {
+      gate.resolve = resolve;
+    });
+    const assistantApi = createAssistantApi();
+    assistantApi.streamChat.mockImplementationOnce(async (_payload, handlers = {}) => {
+      const session = {
+        session_id: "session-1",
+        title: "Platform overview",
+        preview: "Summarize the hybrid AI platform.",
+      };
+      const userMessage = {
+        message_id: "message-user-2",
+        role: "user",
+        content: "Give me a progress demo",
+        created_at: "2026-04-23T08:01:00.000Z",
+        metadata: null,
+      };
+      const message = {
+        message_id: "message-2",
+        role: "assistant",
+        content: "Streaming works in readable chunks.",
+        created_at: "2026-04-23T08:02:00.000Z",
+        metadata: { request_id: "req-2", output_tokens: 24, latency_ms: 48 },
+      };
+      const completePayload = { session, message };
+
+      await handlers.onSession?.(session);
+      await handlers.onUserMessage?.(userMessage);
+      await handlers.onTextDelta?.("Streaming works ");
+      await gate.promise;
+      await handlers.onTextDelta?.("in readable chunks.");
+      await handlers.onComplete?.(completePayload);
+      return completePayload;
+    });
+
+    await renderApp(1440, assistantApi);
     const user = userEvent.setup();
 
     await user.clear(screen.getByLabelText("Prompt"));
@@ -292,11 +343,12 @@ describe("App layout behavior", () => {
     await user.click(screen.getByRole("button", { name: "Send message" }));
 
     await waitFor(() => {
-      expect(assistantApi.chat).toHaveBeenCalled();
+      expect(assistantApi.streamChat).toHaveBeenCalled();
     });
 
     await screen.findByText("Streaming response...");
     await screen.findByRole("button", { name: "Streaming..." });
+    gate.resolve();
     await screen.findByText("Streaming works in readable chunks.");
   });
 });

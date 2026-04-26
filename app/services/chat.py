@@ -3,9 +3,14 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Iterator, Literal, Sequence
 
-from app.clients.base import AssistantClient, AssistantResponse, ConversationTurn
+from app.clients.base import (
+    AssistantClient,
+    AssistantResponse,
+    AssistantStreamEvent,
+    ConversationTurn,
+)
 from app.config.settings import GuardrailSettings, Settings
 
 logger = logging.getLogger(__name__)
@@ -52,6 +57,13 @@ class ChatResult:
         }
 
 
+@dataclass(slots=True)
+class ChatStreamEvent:
+    type: Literal["text_delta", "complete"]
+    text: str | None = None
+    result: ChatResult | None = None
+
+
 class ChatService:
     def __init__(self, *, client: AssistantClient, settings: Settings) -> None:
         self._client = client
@@ -78,39 +90,56 @@ class ChatService:
             temperature=temperature,
             guardrail_settings=guardrail_settings,
         )
-        latency_ms = int((time.perf_counter() - started_at) * 1000)
-        result = _build_chat_result(
+        result = _build_logged_chat_result(
             response=response,
-            provider=self._client.provider_name,
-            target_id=self._client.target_identifier,
-            target_kind=self._client.target_kind,
-            target_source=self._client.target_source,
-            latency_ms=latency_ms,
+            client=self._client,
+            settings=self._settings,
+            started_at=started_at,
             guardrail_settings=guardrail_settings,
         )
-
-        logger.info(
-            "Model prompt completed",
-            extra={
-                "provider": result.provider,
-                "target_id": result.target_id,
-                "target_kind": result.target_kind,
-                "target_source": result.target_source,
-                "guardrail_mode": result.guardrail_mode,
-                "guardrail_identifier": result.guardrail_identifier,
-                "guardrail_applied": result.guardrail_applied,
-                "guardrail_intervened": result.guardrail_intervened,
-                "service_tier": result.service_tier,
-                "request_id": result.request_id,
-                "latency_ms": result.latency_ms,
-                "stop_reason": result.stop_reason,
-                "input_tokens": result.input_tokens,
-                "output_tokens": result.output_tokens,
-                "aws_region": self._settings.aws_region,
-            },
-        )
-
         return result
+
+    def stream_chat(
+        self,
+        *,
+        prompt: str,
+        conversation: Sequence[ConversationTurn] | None = None,
+        system_prompt: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        guardrail_settings: GuardrailSettings | None = None,
+    ) -> Iterator[ChatStreamEvent]:
+        effective_system_prompt = system_prompt or self._settings.assistant_system_prompt
+        trimmed_conversation = _trim_conversation(conversation)
+        started_at = time.perf_counter()
+        final_response: AssistantResponse | None = None
+
+        for event in self._client.stream_message(
+            prompt=prompt,
+            conversation=trimmed_conversation,
+            system_prompt=effective_system_prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            guardrail_settings=guardrail_settings,
+        ):
+            if event.type == "text_delta" and event.text is not None:
+                yield ChatStreamEvent(type="text_delta", text=event.text)
+                continue
+            if event.type == "complete" and event.response is not None:
+                final_response = event.response
+                break
+
+        if final_response is None:
+            raise RuntimeError("Provider stream ended without a final response.")
+
+        result = _build_logged_chat_result(
+            response=final_response,
+            client=self._client,
+            settings=self._settings,
+            started_at=started_at,
+            guardrail_settings=guardrail_settings,
+        )
+        yield ChatStreamEvent(type="complete", result=result)
 
 
 def _trim_conversation(
@@ -174,3 +203,46 @@ def _build_chat_result(
         request_id=response.request_id,
         latency_ms=latency_ms,
     )
+
+
+def _build_logged_chat_result(
+    *,
+    response: AssistantResponse,
+    client: AssistantClient,
+    settings: Settings,
+    started_at: float,
+    guardrail_settings: GuardrailSettings | None,
+) -> ChatResult:
+    latency_ms = int((time.perf_counter() - started_at) * 1000)
+    result = _build_chat_result(
+        response=response,
+        provider=client.provider_name,
+        target_id=client.target_identifier,
+        target_kind=client.target_kind,
+        target_source=client.target_source,
+        latency_ms=latency_ms,
+        guardrail_settings=guardrail_settings,
+    )
+
+    logger.info(
+        "Model prompt completed",
+        extra={
+            "provider": result.provider,
+            "target_id": result.target_id,
+            "target_kind": result.target_kind,
+            "target_source": result.target_source,
+            "guardrail_mode": result.guardrail_mode,
+            "guardrail_identifier": result.guardrail_identifier,
+            "guardrail_applied": result.guardrail_applied,
+            "guardrail_intervened": result.guardrail_intervened,
+            "service_tier": result.service_tier,
+            "request_id": result.request_id,
+            "latency_ms": result.latency_ms,
+            "stop_reason": result.stop_reason,
+            "input_tokens": result.input_tokens,
+            "output_tokens": result.output_tokens,
+            "aws_region": settings.aws_region,
+        },
+    )
+
+    return result

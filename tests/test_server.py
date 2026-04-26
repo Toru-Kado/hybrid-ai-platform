@@ -9,7 +9,7 @@ import urllib.request
 from unittest import mock
 
 from app.clients import AssistantClientError
-from app.clients.base import AssistantResponse
+from app.clients.base import AssistantResponse, AssistantStreamEvent
 from app.server import create_server
 
 
@@ -21,6 +21,7 @@ class FakeClient:
 
     def __init__(self) -> None:
         self.calls = []
+        self.stream_calls = []
 
     def send_message(
         self,
@@ -48,6 +49,39 @@ class FakeClient:
             usage_output_tokens=3,
             request_id="req-test",
             service_tier=None,
+        )
+
+    def stream_message(
+        self,
+        prompt,
+        *,
+        conversation=None,
+        system_prompt=None,
+        max_tokens=None,
+        temperature=None,
+        guardrail_settings=None,
+    ):
+        self.stream_calls.append(
+            {
+                "prompt": prompt,
+                "conversation": conversation,
+                "system_prompt": system_prompt,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+            }
+        )
+        yield AssistantStreamEvent(type="text_delta", text="echo: ")
+        yield AssistantStreamEvent(type="text_delta", text=prompt)
+        yield AssistantStreamEvent(
+            type="complete",
+            response=AssistantResponse(
+                text=f"echo: {prompt}",
+                stop_reason="end_turn",
+                usage_input_tokens=4,
+                usage_output_tokens=3,
+                request_id="req-stream",
+                service_tier=None,
+            ),
         )
 
 
@@ -91,6 +125,31 @@ class ServerTests(unittest.TestCase):
         with urllib.request.urlopen(request) as response:
             return json.loads(response.read().decode("utf-8"))
 
+    def _stream_request(self, url: str, payload):
+        request = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(request) as response:
+            return self._parse_sse_events(response.read().decode("utf-8"))
+
+    def _parse_sse_events(self, body: str):
+        events = []
+        for chunk in body.split("\n\n"):
+            if not chunk.strip():
+                continue
+            event_name = "message"
+            data_lines = []
+            for line in chunk.splitlines():
+                if line.startswith("event:"):
+                    event_name = line.split(":", 1)[1].strip()
+                elif line.startswith("data:"):
+                    data_lines.append(line.split(":", 1)[1].lstrip())
+            events.append((event_name, json.loads("\n".join(data_lines))))
+        return events
+
     def _start_server(self, client=None):
         env_path = self._write_env()
         db_path = self._write_db_path()
@@ -133,6 +192,20 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(payload["request_id"], "req-test")
         self.assertEqual(payload["session"]["message_count"], 2)
         self.assertEqual(payload["message"]["role"], "assistant")
+
+    def test_chat_stream_emits_live_events_and_persists_session(self):
+        server, fake_client = self._start_server()
+        events = self._stream_request(
+            f"{self._server_url(server)}/api/chat/stream",
+            {"prompt": "hello stream"},
+        )
+
+        self.assertEqual([event[0] for event in events], ["session", "user_message", "delta", "delta", "complete"])
+        self.assertEqual(events[2][1]["text"], "echo: ")
+        self.assertEqual(events[3][1]["text"], "hello stream")
+        self.assertEqual(events[-1][1]["message"]["content"], "echo: hello stream")
+        self.assertEqual(events[-1][1]["request_id"], "req-stream")
+        self.assertEqual(fake_client.stream_calls[-1]["conversation"][0].content, "hello stream")
 
     def test_chat_persists_messages_to_session_history(self):
         server, fake_client = self._start_server()
