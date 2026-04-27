@@ -9,9 +9,14 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .cache/
+.local/
 cdk.out/
+node_modules/
+.vite/
 dist/
 build/
+release/
 *.egg-info/
 
 infra/.venv/
+node_modules
