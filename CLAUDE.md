@@ -14,7 +14,7 @@ Monorepo for a local-first AI assistant with an Electron desktop shell and an AW
 ```bash
 # First-time setup
 make bootstrap          # Python venv + app install
-make frontend-bootstrap # npm install (alias: npm install)
+make frontend-bootstrap # npm install
 make infra-bootstrap    # Infra venv + CDK libs
 
 # Daily development
@@ -47,20 +47,34 @@ make cdk-deploy         # Deploy via scripts/deploy-baseline.sh
 
 ```
 app/
-  clients/              # AssistantClient protocol + Bedrock/Anthropic impls
-  config/               # Settings (env-driven dataclass), logging (JSON)
-  services/             # ChatService wraps client calls
-  server.py             # ThreadingHTTPServer — REST API
-  session_store.py      # SQLite session/message persistence
+  clients/
+    base.py             # AssistantClient protocol
+    anthropic.py        # AnthropicRuntimeClient (direct API fallback)
+    bedrock.py          # BedrockRuntimeClient (primary, streaming + guardrails)
+    __init__.py         # Factory: create_runtime_client()
+  config/
+    settings.py         # Immutable Settings dataclass (env-driven, from_env())
+    logging.py          # JSON structured logging
+  services/
+    chat.py             # ChatService — context trimming, message prep, metadata
+  server.py             # ThreadingHTTPServer — REST API + SSE streaming
+  session_store.py      # SQLite session/message persistence (versioned schema)
   main.py               # CLI entry point
 desktop/
-  electron/main.cjs     # Electron main process — spawns Python server
+  electron/
+    main.cjs            # Electron main process — spawns Python server subprocess
+    db-path.cjs         # Database path resolution
+    preload.cjs         # IPC bridge (assistantApi)
   src/
-    App.jsx             # Root React component
-    main.jsx            # React entry point
+    App.jsx             # Root React component (~1300 lines)
     layout.js           # Responsive sidebar/workspace layout
+    transcript.js       # Transcript export utilities
+    styles.css          # Comprehensive styling (~1200 lines)
+    *.test.jsx/js       # Vitest component tests
+  assets/               # App icons (PNG, ICO, ICNS, SVG)
 infra/
-  platform_baseline/    # CDK stack (S3, CloudWatch, IAM)
+  stacks/
+    platform_baseline_stack.py  # CDK stack (S3, CloudWatch, IAM)
   app.py                # CDK app entry point
 scripts/                # Deployment & smoke-test helpers
 tests/                  # Python unit tests (unittest)
@@ -68,11 +82,12 @@ tests/                  # Python unit tests (unittest)
 
 ## Key patterns
 
-- **Provider abstraction:** `AssistantClient` protocol in `app/clients/` with `BedrockRuntimeClient` and `AnthropicRuntimeClient` implementations. Factory: `create_runtime_client()` selects based on `AI_PROVIDER` env var.
-- **Settings:** Immutable dataclass in `app/config/settings.py`, loaded from env vars via `Settings.from_env()`. Validates and resolves Bedrock inference profiles vs direct model IDs.
-- **API server:** Custom `ThreadingHTTPServer` in `app/server.py`. Routes: `/api/health`, `/api/sessions[/{id}]`, `/api/chat`. JSON request/response. 128KB max request size.
-- **Session store:** SQLite via stdlib `sqlite3` in `app/session_store.py`. Tables: `sessions`, `messages`. Default path: `~/.config/{app}/assistant.db`.
-- **Desktop integration:** Electron spawns the Python server as a subprocess, communicates over localhost HTTP.
+- **Provider abstraction:** `AssistantClient` protocol in `app/clients/base.py` with Bedrock and Anthropic implementations. Factory: `create_runtime_client()` selects based on `AI_PROVIDER` env var.
+- **Streaming:** True provider-backed streaming via SSE. Bedrock client streams via ConverseStream API; server exposes `/api/chat` with `Accept: text/event-stream` for SSE or JSON for non-streaming.
+- **Context trimming:** `ChatService` trims conversation history by max turns and max chars before sending to provider. Configurable via `CONTEXT_WINDOW_MAX_TURNS` and `CONTEXT_WINDOW_MAX_CHARS`.
+- **Settings:** Immutable frozen dataclass in `app/config/settings.py`, loaded from env vars via `Settings.from_env()`. Validates and resolves Bedrock inference profiles vs direct model IDs.
+- **Session store:** SQLite via stdlib `sqlite3` with schema versioning and forward migrations. Tables: `sessions`, `messages`. Default path: `~/.config/{app}/assistant.db`.
+- **Desktop integration:** Electron spawns the Python server as a subprocess, communicates over localhost HTTP. React frontend consumes SSE for streaming responses.
 
 ## Environment
 
@@ -80,15 +95,29 @@ Configuration lives in `.env` at repo root (see `.env.example` for full referenc
 
 - `AI_PROVIDER` — `bedrock` or `anthropic`
 - `AWS_REGION`, `AWS_PROFILE` — AWS config
-- `BEDROCK_INFERENCE_PROFILE_ARN` — preferred Bedrock target
+- `BEDROCK_INFERENCE_PROFILE_ARN` — preferred Bedrock target (cross-region)
+- `BEDROCK_MODEL_ID` — fallback direct model ID
 - `ANTHROPIC_API_KEY` — for direct Anthropic fallback
 - `MODEL_MAX_TOKENS`, `MODEL_TEMPERATURE` — generation params
+- `CONTEXT_WINDOW_MAX_TURNS`, `CONTEXT_WINDOW_MAX_CHARS` — trimming limits
+- `BEDROCK_GUARDRAIL_*` — optional guardrail config
+
+## API endpoints
+
+- `GET  /api/health` — health check with provider info
+- `GET  /api/sessions` — list all sessions
+- `GET  /api/sessions/{id}` — get session with messages
+- `POST /api/sessions` — create new session
+- `PATCH /api/sessions/{id}` — rename session
+- `DELETE /api/sessions/{id}` — delete session
+- `POST /api/chat` — send message (JSON response or SSE stream)
 
 ## Git workflow
 
 - `dev` is the integration branch; `main` is stable
 - Topic branches merge into `dev`, not directly into `main`
 - `dev` promotes to `main` when validated
+- Branch naming: `{issue#}-{slug}` (e.g. `10-add-true-provider-backed-streaming`)
 
 ## CI
 
@@ -101,5 +130,6 @@ GitHub Actions workflow (`.github/workflows/smoke.yml`):
 
 - Python: PEP-8 style, no explicit linter configured yet
 - JavaScript: no eslint/prettier configured yet
-- Tests colocated: Python in `tests/`, React in `desktop/src/*.test.{js,jsx}`
+- Tests: Python in `tests/`, React in `desktop/src/*.test.{js,jsx}`
 - No Docker — desktop app packaged via electron-builder
+- Issues tracked in GitHub Issues with labels: `bug`, `enhancement`, `ui/ux`, `data layer`, `backend`
