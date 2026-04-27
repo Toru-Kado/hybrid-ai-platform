@@ -5,6 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { DEFAULT_SIDEBAR_WIDTH, SIDEBAR_MAX_WIDTH, SIDEBAR_MIN_WIDTH } from "./layout";
 
+let clipboardWriteTextMock;
+let execCommandMock;
+
 function createAssistantApi() {
   return {
     health: vi.fn().mockResolvedValue({
@@ -35,6 +38,13 @@ function createAssistantApi() {
         preview: "Summarize the hybrid AI platform.",
       },
       messages: [
+        {
+          message_id: "message-user-1",
+          role: "user",
+          content: "Summarize the hybrid AI platform.",
+          created_at: "2026-04-23T07:59:00.000Z",
+          metadata: null,
+        },
         {
           message_id: "message-1",
           role: "assistant",
@@ -117,6 +127,22 @@ function renderAppWithoutWaiting(width, assistantApi = createAssistantApi()) {
 describe("App layout behavior", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    execCommandMock = vi.fn().mockReturnValue(true);
+    if (!navigator.clipboard) {
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: {
+          writeText: async () => {},
+        },
+      });
+    }
+    clipboardWriteTextMock = vi
+      .spyOn(navigator.clipboard, "writeText")
+      .mockResolvedValue(undefined);
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: execCommandMock,
+    });
   });
 
   afterEach(() => {
@@ -310,6 +336,54 @@ describe("App layout behavior", () => {
     await screen.findByText("Exported JSON transcript.");
   });
 
+  it("copies message content from the message action bar", async () => {
+    await renderApp(1440);
+    const user = userEvent.setup();
+    const assistantMessage = screen.getByText("The platform routes Claude through Bedrock.").closest(
+      ".message",
+    );
+
+    await user.click(within(assistantMessage).getByRole("button", { name: "Copy" }));
+
+    await screen.findByText("Copied assistant message.");
+    expect(clipboardWriteTextMock.mock.calls.length + execCommandMock.mock.calls.length).toBe(1);
+  });
+
+  it("copies fenced code blocks directly from assistant markdown", async () => {
+    const assistantApi = createAssistantApi();
+    assistantApi.getSession.mockResolvedValueOnce({
+      session: {
+        session_id: "session-1",
+        title: "Platform overview",
+        preview: "Summarize the hybrid AI platform.",
+      },
+      messages: [
+        {
+          message_id: "message-user-1",
+          role: "user",
+          content: "Show me a command",
+          created_at: "2026-04-23T07:59:00.000Z",
+          metadata: null,
+        },
+        {
+          message_id: "message-1",
+          role: "assistant",
+          content: "```bash\nmake desktop:test\n```",
+          created_at: "2026-04-23T08:00:00.000Z",
+          metadata: { request_id: "req-1", output_tokens: 12, latency_ms: 34 },
+        },
+      ],
+    });
+    await renderApp(1440, assistantApi);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Copy code" }));
+
+    await waitFor(() => {
+      expect(clipboardWriteTextMock.mock.calls.length + execCommandMock.mock.calls.length).toBe(1);
+    });
+  });
+
   it("shows a retry affordance when the desktop bootstrap cannot reach the local API", async () => {
     const assistantApi = createAssistantApi();
     assistantApi.health.mockRejectedValueOnce(new Error("Could not reach local API."));
@@ -362,6 +436,27 @@ describe("App layout behavior", () => {
 
     await waitFor(() => {
       expect(assistantApi.streamChat).toHaveBeenCalledTimes(2);
+    });
+    await screen.findByText("Streaming works in readable chunks.");
+  });
+
+  it("regenerates the latest assistant reply from the most recent user prompt", async () => {
+    const { assistantApi } = await renderApp(1440);
+    const user = userEvent.setup();
+    const assistantMessage = screen.getByText("The platform routes Claude through Bedrock.").closest(
+      ".message",
+    );
+
+    await user.click(within(assistantMessage).getByRole("button", { name: "Regenerate" }));
+
+    await waitFor(() => {
+      expect(assistantApi.streamChat).toHaveBeenCalledWith(
+        expect.objectContaining({
+          session_id: "session-1",
+          prompt: "Summarize the hybrid AI platform.",
+        }),
+        expect.any(Object),
+      );
     });
     await screen.findByText("Streaming works in readable chunks.");
   });

@@ -117,6 +117,7 @@ export default function App() {
   const resizeCleanupRef = useRef(() => {});
   const previousCompactRef = useRef(readCompactViewport());
   const mountedRef = useRef(true);
+  const latestAssistantPair = findLatestAssistantPair(messages);
 
   const isBusy = isLoading || streamingMessageId !== null;
   const normalizedSessionFilter = sessionFilter.trim().toLowerCase();
@@ -482,6 +483,47 @@ export default function App() {
     } catch (caught) {
       setErrorState(buildErrorState(caught?.message, { context: "export" }));
     }
+  }
+
+  async function copyMessageContent(message) {
+    try {
+      await writeToClipboard(message.content || "");
+      setNotice(message.role === "assistant" ? "Copied assistant message." : "Copied prompt.");
+      setErrorState(null);
+    } catch (caught) {
+      setErrorState(buildErrorState(caught?.message, { context: "clipboard" }));
+    }
+  }
+
+  async function copyCodeBlock(code) {
+    try {
+      await writeToClipboard(code);
+      setNotice("Copied code block.");
+      setErrorState(null);
+    } catch (caught) {
+      setErrorState(buildErrorState(caught?.message, { context: "clipboard" }));
+    }
+  }
+
+  async function regenerateLatestReply() {
+    if (!latestAssistantPair || isBusy) {
+      return;
+    }
+
+    const { userMessage } = latestAssistantPair;
+    const userMetadata = userMessage.metadata || {};
+
+    setNotice("Regenerating the latest reply from the last prompt.");
+    await sendPrompt({
+      session_id: activeSession?.session_id,
+      prompt: userMessage.content,
+      system_prompt:
+        typeof userMetadata.system_prompt === "string" && userMetadata.system_prompt.trim()
+          ? userMetadata.system_prompt
+          : systemPrompt || undefined,
+      temperature: Number(temperature),
+      max_tokens: Number(maxTokens),
+    });
   }
 
   function clearFeedback() {
@@ -865,6 +907,11 @@ export default function App() {
                   key={message.message_id}
                   message={message}
                   isStreaming={streamingMessageId === message.message_id}
+                  isLatestAssistant={latestAssistantPair?.assistantMessage.message_id === message.message_id}
+                  canRegenerate={!isBusy && latestAssistantPair?.assistantMessage.message_id === message.message_id}
+                  onCopyMessage={() => copyMessageContent(message)}
+                  onCopyCode={copyCodeBlock}
+                  onRegenerate={regenerateLatestReply}
                 />
               ))
             )}
@@ -951,20 +998,79 @@ function ThreadStateCard({ title, body, tone = "neutral", actionLabel = null, on
   );
 }
 
-function MessageBubble({ message, isStreaming = false }) {
+function MessageBubble({
+  message,
+  isStreaming = false,
+  isLatestAssistant = false,
+  canRegenerate = false,
+  onCopyMessage,
+  onCopyCode,
+  onRegenerate,
+}) {
   const isAssistant = message.role === "assistant";
   const metadata = message.metadata || {};
 
   return (
     <article className={`message ${isAssistant ? "assistant" : "user"}`}>
       <header>
-        <strong>{isAssistant ? "Assistant" : "You"}</strong>
-        <span>{formatTimestamp(message.created_at)}</span>
+        <div className="message-heading">
+          <strong>{isAssistant ? "Assistant" : "You"}</strong>
+          <span>{formatTimestamp(message.created_at)}</span>
+        </div>
+        <div className="message-actions">
+          <button
+            type="button"
+            className="secondary-button compact-button subtle-button"
+            onClick={onCopyMessage}
+          >
+            Copy
+          </button>
+          {isAssistant && isLatestAssistant ? (
+            <button
+              type="button"
+              className="secondary-button compact-button subtle-button"
+              onClick={onRegenerate}
+              disabled={!canRegenerate}
+            >
+              Regenerate
+            </button>
+          ) : null}
+        </div>
       </header>
 
       {isAssistant ? (
         <div className="markdown-body">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{
+              pre(props) {
+                const child = props.children;
+                const rawCode =
+                  child && typeof child === "object" && "props" in child
+                    ? child.props?.children
+                    : "";
+                const codeText = Array.isArray(rawCode) ? rawCode.join("") : rawCode || "";
+
+                return (
+                  <div className="code-block">
+                    <div className="code-block-toolbar">
+                      <span>Code</span>
+                      <button
+                        type="button"
+                        className="secondary-button compact-button subtle-button"
+                        onClick={() => onCopyCode(codeText)}
+                      >
+                        Copy code
+                      </button>
+                    </div>
+                    <pre>{props.children}</pre>
+                  </div>
+                );
+              },
+            }}
+          >
+            {message.content}
+          </ReactMarkdown>
         </div>
       ) : (
         <p className="plain-message">{message.content}</p>
@@ -1093,6 +1199,44 @@ function humanizeRuntimeToken(value) {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+async function writeToClipboard(value) {
+  if (navigator?.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "absolute";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const success = document.execCommand("copy");
+  document.body.removeChild(textarea);
+
+  if (!success) {
+    throw new Error("Clipboard access is unavailable in this environment.");
+  }
+}
+
+function findLatestAssistantPair(messages) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const assistantMessage = messages[index];
+    if (assistantMessage?.role !== "assistant") {
+      continue;
+    }
+    for (let candidate = index - 1; candidate >= 0; candidate -= 1) {
+      const userMessage = messages[candidate];
+      if (userMessage?.role === "user") {
+        return { assistantMessage, userMessage };
+      }
+    }
+    break;
+  }
+  return null;
 }
 
 async function streamChatOverHttp(url, payload, handlers = {}) {
