@@ -139,6 +139,8 @@ class Settings:
     bedrock_guardrail_trace: bool
     model_max_tokens: int
     model_temperature: float
+    context_window_max_turns: int
+    context_window_max_chars: int
     assistant_system_prompt: str | None
     ai_assets_bucket_name: str | None
     assistant_log_group_name: str | None
@@ -228,6 +230,14 @@ class Settings:
         if model_temperature < 0 or model_temperature > 1:
             raise SettingsError("MODEL_TEMPERATURE must be between 0 and 1")
 
+        context_window_max_turns = _int_env("CONTEXT_WINDOW_MAX_TURNS", 24)
+        if context_window_max_turns <= 0:
+            raise SettingsError("CONTEXT_WINDOW_MAX_TURNS must be greater than zero")
+
+        context_window_max_chars = _int_env("CONTEXT_WINDOW_MAX_CHARS", 24_000)
+        if context_window_max_chars <= 0:
+            raise SettingsError("CONTEXT_WINDOW_MAX_CHARS must be greater than zero")
+
         anthropic_api_key = _optional_env("ANTHROPIC_API_KEY")
         anthropic_model = _optional_env("ANTHROPIC_MODEL")
         anthropic_base_url = os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
@@ -314,6 +324,8 @@ class Settings:
             bedrock_guardrail_trace=bedrock_guardrail_trace,
             model_max_tokens=model_max_tokens,
             model_temperature=model_temperature,
+            context_window_max_turns=context_window_max_turns,
+            context_window_max_chars=context_window_max_chars,
             assistant_system_prompt=_optional_env("ASSISTANT_SYSTEM_PROMPT"),
             ai_assets_bucket_name=_optional_env("AI_ASSETS_BUCKET_NAME"),
             assistant_log_group_name=_optional_env("ASSISTANT_LOG_GROUP_NAME"),
