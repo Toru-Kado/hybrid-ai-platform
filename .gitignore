@@ -19,3 +19,4 @@ release/
 *.egg-info/
 
 infra/.venv/
+node_modules
