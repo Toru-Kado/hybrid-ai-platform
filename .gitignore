@@ -12,6 +12,7 @@ __pycache__/
 .local/
 cdk.out/
 node_modules/
+.vite/
 dist/
 build/
 release/

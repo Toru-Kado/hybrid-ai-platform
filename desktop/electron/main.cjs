@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
+const { resolveDesktopDbPath } = require("./db-path.cjs");
 
 const API_HOST = "127.0.0.1";
 const API_PORT = Number(process.env.HYBRID_AI_API_PORT || 8765);
@@ -9,6 +10,21 @@ const API_BASE_URL = `http://${API_HOST}:${API_PORT}`;
 
 let mainWindow;
 let backendProcess;
+
+function iconPath() {
+  return path.join(projectRoot(), "desktop", "assets", "app-icon.png");
+}
+
+function applyApplicationIcon() {
+  const resolvedIconPath = iconPath();
+  if (!fs.existsSync(resolvedIconPath)) {
+    return;
+  }
+
+  if (process.platform === "darwin" && app.dock?.setIcon) {
+    app.dock.setIcon(resolvedIconPath);
+  }
+}
 
 function projectRoot() {
   return app.isPackaged
@@ -43,9 +59,12 @@ function startBackend() {
   const rootDir = projectRoot();
   const pythonCommand = resolvePythonCommand(rootDir);
   const envFile = process.env.HYBRID_AI_ENV_FILE || path.join(rootDir, ".env");
-  const dbPath =
-    process.env.HYBRID_AI_DB_PATH ||
-    path.join(app.getPath("userData"), "assistant.db");
+  const dbPath = resolveDesktopDbPath({
+    envDbPath: process.env.HYBRID_AI_DB_PATH,
+    isPackaged: app.isPackaged,
+    projectRootPath: rootDir,
+    userDataPath: app.getPath("userData"),
+  });
 
   backendProcess = spawn(
     pythonCommand,
@@ -108,6 +127,7 @@ async function createWindow() {
     show: false,
     title: "Hybrid AI Platform",
     backgroundColor: "#101816",
+    icon: iconPath(),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -185,6 +205,30 @@ ipcMain.handle("assistant:deleteSession", async (_event, sessionId) => {
   return null;
 });
 
+ipcMain.handle("assistant:saveTranscript", async (_event, payload) => {
+  const format = payload?.format === "json" ? "json" : "markdown";
+  const content = typeof payload?.content === "string" ? payload.content : "";
+  const suggestedName =
+    typeof payload?.suggestedName === "string" && payload.suggestedName.trim()
+      ? payload.suggestedName.trim()
+      : `session-transcript.${format === "json" ? "json" : "md"}`;
+  const saveDialog = await dialog.showSaveDialog(mainWindow ?? undefined, {
+    title: "Export session transcript",
+    defaultPath: path.join(app.getPath("downloads"), suggestedName),
+    filters:
+      format === "json"
+        ? [{ name: "JSON", extensions: ["json"] }]
+        : [{ name: "Markdown", extensions: ["md", "markdown"] }],
+  });
+
+  if (saveDialog.canceled || !saveDialog.filePath) {
+    return { canceled: true };
+  }
+
+  await fs.promises.writeFile(saveDialog.filePath, content, "utf8");
+  return { canceled: false, path: saveDialog.filePath };
+});
+
 ipcMain.handle("assistant:chat", async (_event, payload) => {
   const response = await fetch(`${API_BASE_URL}/api/chat`, {
     method: "POST",
@@ -202,6 +246,7 @@ ipcMain.handle("assistant:chat", async (_event, payload) => {
 
 app.whenReady().then(async () => {
   try {
+    applyApplicationIcon();
     startBackend();
     await waitForBackend();
     await createWindow();

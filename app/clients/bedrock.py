@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Iterator, Sequence
 
-from app.clients.base import AssistantClientError, AssistantResponse
+from app.clients.base import (
+    AssistantClientError,
+    AssistantResponse,
+    AssistantStreamEvent,
+    ConversationTurn,
+)
 from app.config.settings import GuardrailSettings, Settings
 
 logger = logging.getLogger(__name__)
@@ -57,6 +62,7 @@ class BedrockRuntimeClient:
         self,
         prompt: str,
         *,
+        conversation: Sequence[ConversationTurn] | None = None,
         system_prompt: str | None = None,
         max_tokens: int | None = None,
         temperature: float | None = None,
@@ -65,6 +71,7 @@ class BedrockRuntimeClient:
         payload = _build_converse_payload(
             target_identifier=self.target_identifier,
             prompt=prompt,
+            conversation=conversation,
             system_prompt=system_prompt,
             max_tokens=max_tokens or self._settings.model_max_tokens,
             temperature=(
@@ -120,25 +127,80 @@ class BedrockRuntimeClient:
             service_tier=response.get("serviceTier", {}).get("type"),
         )
 
+    def stream_message(
+        self,
+        prompt: str,
+        *,
+        conversation: Sequence[ConversationTurn] | None = None,
+        system_prompt: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        guardrail_settings: GuardrailSettings | None = None,
+    ) -> Iterator[AssistantStreamEvent]:
+        payload = _build_converse_payload(
+            target_identifier=self.target_identifier,
+            prompt=prompt,
+            conversation=conversation,
+            system_prompt=system_prompt,
+            max_tokens=max_tokens or self._settings.model_max_tokens,
+            temperature=(
+                temperature
+                if temperature is not None
+                else self._settings.model_temperature
+            ),
+            guardrail_settings=guardrail_settings,
+            request_metadata=_build_request_metadata(self._settings),
+        )
+
+        logger.debug(
+            "Sending Bedrock ConverseStream request",
+            extra={
+                "provider": self.provider_name,
+                "aws_region": self._settings.aws_region,
+                "target_id": self.target_identifier,
+                "target_kind": self.target_kind,
+                "target_source": self.target_source,
+                "guardrail_mode": guardrail_settings.mode if guardrail_settings else "off",
+                "guardrail_identifier": (
+                    guardrail_settings.identifier if guardrail_settings else None
+                ),
+                "guardrail_applied": guardrail_settings is not None,
+            },
+        )
+
+        try:
+            response = self._client.converse_stream(**payload)
+        except self._handled_exceptions as exc:
+            raise _normalize_bedrock_error(
+                exc,
+                target_identifier=self.target_identifier,
+                target_kind=self.target_kind,
+            ) from exc
+
+        request_id = response.get("ResponseMetadata", {}).get("RequestId")
+        yield from _iter_converse_stream_events(
+            response.get("stream", []),
+            request_id=request_id,
+            target_identifier=self.target_identifier,
+            target_kind=self.target_kind,
+        )
+
 
 def _build_converse_payload(
     *,
     target_identifier: str,
     prompt: str,
+    conversation: Sequence[ConversationTurn] | None,
     system_prompt: str | None,
     max_tokens: int,
     temperature: float,
     guardrail_settings: GuardrailSettings | None,
     request_metadata: dict[str, str] | None,
 ) -> dict[str, Any]:
+    message_turns = list(conversation) if conversation else [ConversationTurn(role="user", content=prompt)]
     payload: dict[str, Any] = {
         "modelId": target_identifier,
-        "messages": [
-            {
-                "role": "user",
-                "content": _build_user_content(prompt, guardrail_settings),
-            }
-        ],
+        "messages": _build_messages(message_turns, guardrail_settings),
         "inferenceConfig": {
             "maxTokens": max_tokens,
             "temperature": temperature,
@@ -169,6 +231,27 @@ def _build_request_metadata(settings: Settings) -> dict[str, str]:
         "targetKind": settings.runtime_target.kind,
         "targetSource": settings.runtime_target.source_env,
     }
+
+
+def _build_messages(
+    turns: Sequence[ConversationTurn],
+    guardrail_settings: GuardrailSettings | None,
+) -> list[dict[str, Any]]:
+    messages: list[dict[str, Any]] = []
+    for turn in turns:
+        content = turn.content.strip()
+        if not content:
+            continue
+        if turn.role == "assistant":
+            messages.append({"role": "assistant", "content": [{"text": content}]})
+            continue
+        messages.append(
+            {
+                "role": "user",
+                "content": _build_user_content(content, guardrail_settings),
+            }
+        )
+    return messages
 
 
 def _build_user_content(
@@ -226,6 +309,100 @@ def _load_bedrock_dependencies() -> tuple[Any, Any, tuple[type[BaseException], .
         ProfileNotFound,
     )
     return boto3, botocore_config, handled_exceptions
+
+
+def _iter_converse_stream_events(
+    stream: Sequence[dict[str, Any]],
+    *,
+    request_id: str | None,
+    target_identifier: str,
+    target_kind: str,
+) -> Iterator[AssistantStreamEvent]:
+    text_chunks: list[str] = []
+    stop_reason: str | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    service_tier: str | None = None
+
+    for chunk in stream:
+        if not isinstance(chunk, dict):
+            continue
+
+        delta_event = chunk.get("contentBlockDelta")
+        if isinstance(delta_event, dict):
+            delta = delta_event.get("delta", {})
+            if isinstance(delta, dict):
+                text = delta.get("text")
+                if isinstance(text, str) and text:
+                    text_chunks.append(text)
+                    yield AssistantStreamEvent(type="text_delta", text=text)
+            continue
+
+        message_stop = chunk.get("messageStop")
+        if isinstance(message_stop, dict):
+            stop_reason = message_stop.get("stopReason")
+            continue
+
+        metadata = chunk.get("metadata")
+        if isinstance(metadata, dict):
+            usage = metadata.get("usage", {})
+            if isinstance(usage, dict):
+                input_tokens = usage.get("inputTokens")
+                output_tokens = usage.get("outputTokens")
+            performance = metadata.get("performanceConfig", {})
+            if isinstance(performance, dict):
+                service_tier = performance.get("latency")
+            continue
+
+        stream_error = _stream_chunk_error(
+            chunk,
+            target_identifier=target_identifier,
+            target_kind=target_kind,
+        )
+        if stream_error is not None:
+            raise stream_error
+
+    yield AssistantStreamEvent(
+        type="complete",
+        response=BedrockResponse(
+            text="".join(text_chunks),
+            stop_reason=stop_reason,
+            usage_input_tokens=input_tokens,
+            usage_output_tokens=output_tokens,
+            request_id=request_id,
+            service_tier=service_tier,
+        ),
+    )
+
+
+def _stream_chunk_error(
+    chunk: dict[str, Any],
+    *,
+    target_identifier: str,
+    target_kind: str,
+) -> BedrockClientError | None:
+    for error_key, error_code in (
+        ("internalServerException", "InternalServerException"),
+        ("modelStreamErrorException", "ModelStreamErrorException"),
+        ("serviceUnavailableException", "ServiceUnavailableException"),
+        ("throttlingException", "ThrottlingException"),
+        ("validationException", "ValidationException"),
+    ):
+        details = chunk.get(error_key)
+        if not isinstance(details, dict):
+            continue
+        return BedrockClientError(
+            _normalize_service_error_message(
+                service_code=error_code,
+                service_message=details.get("message"),
+                target_identifier=target_identifier,
+                target_kind=target_kind,
+            )
+            or details.get("message")
+            or "Amazon Bedrock streaming failed.",
+            error_code=error_code,
+        )
+    return None
 
 
 def _normalize_bedrock_error(

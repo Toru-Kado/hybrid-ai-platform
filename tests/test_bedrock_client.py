@@ -1,6 +1,11 @@
 import unittest
 
-from app.clients.bedrock import _build_converse_payload, _normalize_bedrock_error
+from app.clients.base import ConversationTurn
+from app.clients.bedrock import (
+    _build_converse_payload,
+    _iter_converse_stream_events,
+    _normalize_bedrock_error,
+)
 from app.config.settings import GuardrailSettings
 
 
@@ -20,6 +25,7 @@ class BedrockPayloadTests(unittest.TestCase):
         payload = _build_converse_payload(
             target_identifier="anthropic.claude-3-5-sonnet-20241022-v2:0",
             prompt="hello",
+            conversation=None,
             system_prompt="system text",
             max_tokens=128,
             temperature=0.2,
@@ -36,6 +42,7 @@ class BedrockPayloadTests(unittest.TestCase):
         payload = _build_converse_payload(
             target_identifier="anthropic.claude-3-5-sonnet-20241022-v2:0",
             prompt="hello",
+            conversation=None,
             system_prompt="system text",
             max_tokens=128,
             temperature=0.2,
@@ -63,6 +70,7 @@ class BedrockPayloadTests(unittest.TestCase):
         payload = _build_converse_payload(
             target_identifier="anthropic.claude-3-5-sonnet-20241022-v2:0",
             prompt="hello",
+            conversation=None,
             system_prompt="system text",
             max_tokens=128,
             temperature=0.2,
@@ -78,6 +86,31 @@ class BedrockPayloadTests(unittest.TestCase):
         self.assertIn("guardContent", payload["messages"][0]["content"][0])
         self.assertIn("guardContent", payload["system"][0])
         self.assertNotIn("trace", payload["guardrailConfig"])
+
+    def test_builds_conversation_payload_with_history(self):
+        payload = _build_converse_payload(
+            target_identifier="anthropic.claude-3-5-sonnet-20241022-v2:0",
+            prompt="latest user turn",
+            conversation=[
+                ConversationTurn(role="user", content="first question"),
+                ConversationTurn(role="assistant", content="first answer"),
+                ConversationTurn(role="user", content="latest user turn"),
+            ],
+            system_prompt=None,
+            max_tokens=128,
+            temperature=0.2,
+            guardrail_settings=None,
+            request_metadata=None,
+        )
+
+        self.assertEqual(
+            payload["messages"],
+            [
+                {"role": "user", "content": [{"text": "first question"}]},
+                {"role": "assistant", "content": [{"text": "first answer"}]},
+                {"role": "user", "content": [{"text": "latest user turn"}]},
+            ],
+        )
 
     def test_adds_inference_profile_hint_for_on_demand_validation_error(self):
         error = _normalize_bedrock_error(
@@ -104,6 +137,36 @@ class BedrockPayloadTests(unittest.TestCase):
 
         self.assertEqual(error.error_code, "ThrottlingException")
         self.assertIn("daily token quota", str(error))
+
+    def test_collects_text_deltas_from_converse_stream(self):
+        events = list(
+            _iter_converse_stream_events(
+                [
+                    {"contentBlockDelta": {"delta": {"text": "Streaming "}}},
+                    {"contentBlockDelta": {"delta": {"text": "works"}}},
+                    {"messageStop": {"stopReason": "end_turn"}},
+                    {
+                        "metadata": {
+                            "usage": {"inputTokens": 14, "outputTokens": 9},
+                            "performanceConfig": {"latency": "standard"},
+                        }
+                    },
+                ],
+                request_id="req-stream",
+                target_identifier="us.anthropic.claude-opus-4-6-v1",
+                target_kind="inference_profile",
+            )
+        )
+
+        self.assertEqual(events[0].type, "text_delta")
+        self.assertEqual(events[0].text, "Streaming ")
+        self.assertEqual(events[1].text, "works")
+        self.assertEqual(events[-1].type, "complete")
+        self.assertEqual(events[-1].response.text, "Streaming works")
+        self.assertEqual(events[-1].response.stop_reason, "end_turn")
+        self.assertEqual(events[-1].response.usage_input_tokens, 14)
+        self.assertEqual(events[-1].response.usage_output_tokens, 9)
+        self.assertEqual(events[-1].response.request_id, "req-stream")
 
 
 if __name__ == "__main__":
