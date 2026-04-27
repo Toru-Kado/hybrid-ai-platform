@@ -139,6 +139,48 @@ class SettingsTests(unittest.TestCase):
             with self.assertRaises(SettingsError):
                 Settings.from_env(env_path)
 
+    def test_rejects_non_positive_context_window_max_turns(self):
+        env_path = self._write_env(
+            """
+            AWS_REGION=us-east-1
+            BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
+            CONTEXT_WINDOW_MAX_TURNS=0
+            """
+        )
+
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(SettingsError):
+                Settings.from_env(env_path)
+
+    def test_rejects_non_positive_context_window_max_chars(self):
+        env_path = self._write_env(
+            """
+            AWS_REGION=us-east-1
+            BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
+            CONTEXT_WINDOW_MAX_CHARS=0
+            """
+        )
+
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with self.assertRaises(SettingsError):
+                Settings.from_env(env_path)
+
+    def test_accepts_explicit_context_window_limits(self):
+        env_path = self._write_env(
+            """
+            AWS_REGION=us-east-1
+            BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
+            CONTEXT_WINDOW_MAX_TURNS=12
+            CONTEXT_WINDOW_MAX_CHARS=6000
+            """
+        )
+
+        with mock.patch.dict(os.environ, {}, clear=True):
+            settings = Settings.from_env(env_path)
+
+        self.assertEqual(settings.context_window_max_turns, 12)
+        self.assertEqual(settings.context_window_max_chars, 6000)
+
     def test_allows_anthropic_provider_without_aws_region(self):
         env_path = self._write_env(
             """
