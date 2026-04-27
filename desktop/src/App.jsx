@@ -114,6 +114,7 @@ export default function App() {
   const [isControlsOpen, setIsControlsOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const threadRef = useRef(null);
+  const nextThreadScrollRef = useRef("top");
   const resizeCleanupRef = useRef(() => {});
   const previousCompactRef = useRef(readCompactViewport());
   const mountedRef = useRef(true);
@@ -138,7 +139,17 @@ export default function App() {
     if (!container) {
       return;
     }
-    container.scrollTop = container.scrollHeight;
+    if (nextThreadScrollRef.current === "top") {
+      container.scrollTop = 0;
+      nextThreadScrollRef.current = null;
+      return;
+    }
+    if (nextThreadScrollRef.current === "bottom" || isLoading || streamingMessageId !== null) {
+      container.scrollTop = container.scrollHeight;
+      if (nextThreadScrollRef.current === "bottom") {
+        nextThreadScrollRef.current = null;
+      }
+    }
   }, [messages, isLoading, streamingMessageId]);
 
   useEffect(() => {
@@ -242,6 +253,7 @@ export default function App() {
       if (!mountedRef.current) {
         return;
       }
+      nextThreadScrollRef.current = "top";
       setActiveSession(payload.session);
       setMessages(payload.messages || []);
       setIsRenamingSession(false);
@@ -325,6 +337,7 @@ export default function App() {
 
     setIsLoading(true);
     clearFeedback();
+    nextThreadScrollRef.current = "bottom";
     setStreamingMessageId(assistantMessageId);
     setMessages((current) => [...current, pendingUserMessage, pendingAssistantMessage]);
     setPrompt("");
