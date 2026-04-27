@@ -2,7 +2,11 @@ import unittest
 from types import SimpleNamespace
 
 from app.clients.base import AssistantResponse, AssistantStreamEvent, ConversationTurn
-from app.services.chat import ChatService, MAX_CONTEXT_CHARS, MAX_CONTEXT_TURNS
+from app.services.chat import (
+    ChatService,
+    DEFAULT_CONTEXT_WINDOW_MAX_CHARS,
+    DEFAULT_CONTEXT_WINDOW_MAX_TURNS,
+)
 
 
 class FakeClient:
@@ -78,11 +82,13 @@ class FakeClient:
 
 
 class ChatServiceTests(unittest.TestCase):
-    def _service(self):
+    def _service(self, *, max_turns=DEFAULT_CONTEXT_WINDOW_MAX_TURNS, max_chars=DEFAULT_CONTEXT_WINDOW_MAX_CHARS):
         client = FakeClient()
         settings = SimpleNamespace(
             assistant_system_prompt="system prompt",
             aws_region="us-east-1",
+            context_window_max_turns=max_turns,
+            context_window_max_chars=max_chars,
         )
         return ChatService(client=client, settings=settings), client
 
@@ -100,7 +106,7 @@ class ChatServiceTests(unittest.TestCase):
     def test_trims_long_running_session_to_recent_context_window(self):
         service, client = self._service()
         conversation = []
-        for index in range(MAX_CONTEXT_TURNS + 10):
+        for index in range(DEFAULT_CONTEXT_WINDOW_MAX_TURNS + 10):
             conversation.append(
                 ConversationTurn(role="user", content=f"user turn {index} " + ("x" * 1200))
             )
@@ -117,11 +123,39 @@ class ChatServiceTests(unittest.TestCase):
         service.chat(prompt="latest prompt", conversation=conversation)
 
         trimmed = client.calls[-1]["conversation"]
-        self.assertLessEqual(len(trimmed), MAX_CONTEXT_TURNS)
-        self.assertLessEqual(sum(len(turn.content) for turn in trimmed), MAX_CONTEXT_CHARS)
+        self.assertLessEqual(len(trimmed), DEFAULT_CONTEXT_WINDOW_MAX_TURNS)
+        self.assertLessEqual(
+            sum(len(turn.content) for turn in trimmed),
+            DEFAULT_CONTEXT_WINDOW_MAX_CHARS,
+        )
         self.assertEqual(trimmed[0].role, "user")
         self.assertEqual(trimmed[-1].role, "user")
         self.assertTrue(trimmed[-1].content.startswith("latest prompt"))
+
+    def test_uses_configured_context_window_limits_deterministically(self):
+        service, client = self._service(max_turns=4, max_chars=80)
+        conversation = [
+            ConversationTurn(role="assistant", content="orphaned assistant intro"),
+            ConversationTurn(role="user", content="older user context that should drop"),
+            ConversationTurn(role="assistant", content="older assistant context that should drop"),
+            ConversationTurn(role="user", content="recent user question"),
+            ConversationTurn(role="assistant", content="recent assistant answer"),
+            ConversationTurn(role="user", content="latest prompt"),
+        ]
+
+        service.chat(prompt="latest prompt", conversation=conversation)
+
+        trimmed = client.calls[-1]["conversation"]
+        self.assertEqual(
+            [(turn.role, turn.content) for turn in trimmed],
+            [
+                ("user", "recent user question"),
+                ("assistant", "recent assistant answer"),
+                ("user", "latest prompt"),
+            ],
+        )
+        self.assertLessEqual(len(trimmed), 4)
+        self.assertLessEqual(sum(len(turn.content) for turn in trimmed), 80)
 
     def test_stream_chat_yields_text_deltas_and_complete_result(self):
         service, client = self._service()

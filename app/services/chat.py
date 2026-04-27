@@ -15,8 +15,8 @@ from app.config.settings import GuardrailSettings, Settings
 
 logger = logging.getLogger(__name__)
 
-MAX_CONTEXT_TURNS = 24
-MAX_CONTEXT_CHARS = 24_000
+DEFAULT_CONTEXT_WINDOW_MAX_TURNS = 24
+DEFAULT_CONTEXT_WINDOW_MAX_CHARS = 24_000
 
 
 @dataclass(slots=True)
@@ -80,7 +80,11 @@ class ChatService:
         guardrail_settings: GuardrailSettings | None = None,
     ) -> ChatResult:
         effective_system_prompt = system_prompt or self._settings.assistant_system_prompt
-        trimmed_conversation = _trim_conversation(conversation)
+        trimmed_conversation = _trim_conversation(
+            conversation,
+            max_turns=self._settings.context_window_max_turns,
+            max_chars=self._settings.context_window_max_chars,
+        )
         started_at = time.perf_counter()
         response = self._client.send_message(
             prompt=prompt,
@@ -110,7 +114,11 @@ class ChatService:
         guardrail_settings: GuardrailSettings | None = None,
     ) -> Iterator[ChatStreamEvent]:
         effective_system_prompt = system_prompt or self._settings.assistant_system_prompt
-        trimmed_conversation = _trim_conversation(conversation)
+        trimmed_conversation = _trim_conversation(
+            conversation,
+            max_turns=self._settings.context_window_max_turns,
+            max_chars=self._settings.context_window_max_chars,
+        )
         started_at = time.perf_counter()
         final_response: AssistantResponse | None = None
 
@@ -145,8 +153,8 @@ class ChatService:
 def _trim_conversation(
     conversation: Sequence[ConversationTurn] | None,
     *,
-    max_turns: int = MAX_CONTEXT_TURNS,
-    max_chars: int = MAX_CONTEXT_CHARS,
+    max_turns: int = DEFAULT_CONTEXT_WINDOW_MAX_TURNS,
+    max_chars: int = DEFAULT_CONTEXT_WINDOW_MAX_CHARS,
 ) -> list[ConversationTurn] | None:
     if not conversation:
         return None
