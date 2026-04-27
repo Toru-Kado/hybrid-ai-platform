@@ -109,8 +109,12 @@ Useful narrower checks:
 Local database details:
 
 - packaged desktop default: Electron user-data directory, `assistant.db`
+- desktop dev default: project-root `.local/assistant.db`
 - standalone server default: `.local/assistant.db`
 - override path: set `HYBRID_AI_DB_PATH` or pass `--db-path` to `python -m app.server`
+
+Desktop dev builds automatically migrate the legacy Electron user-data database into the
+project-local `.local/assistant.db` path the first time they see an older dev install.
 
 The SQLite session store tracks schema state with `PRAGMA user_version`.
 

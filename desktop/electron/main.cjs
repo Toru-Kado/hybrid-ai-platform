@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
+const { resolveDesktopDbPath } = require("./db-path.cjs");
 
 const API_HOST = "127.0.0.1";
 const API_PORT = Number(process.env.HYBRID_AI_API_PORT || 8765);
@@ -58,9 +59,12 @@ function startBackend() {
   const rootDir = projectRoot();
   const pythonCommand = resolvePythonCommand(rootDir);
   const envFile = process.env.HYBRID_AI_ENV_FILE || path.join(rootDir, ".env");
-  const dbPath =
-    process.env.HYBRID_AI_DB_PATH ||
-    path.join(app.getPath("userData"), "assistant.db");
+  const dbPath = resolveDesktopDbPath({
+    envDbPath: process.env.HYBRID_AI_DB_PATH,
+    isPackaged: app.isPackaged,
+    projectRootPath: rootDir,
+    userDataPath: app.getPath("userData"),
+  });
 
   backendProcess = spawn(
     pythonCommand,

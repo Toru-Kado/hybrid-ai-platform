@@ -208,6 +208,85 @@ describe("App layout behavior", () => {
     expect(screen.getByAltText("Hybrid AI Platform icon")).toBeInTheDocument();
   });
 
+  it("hydrates saved conversation history for the selected session", async () => {
+    const assistantApi = createAssistantApi();
+    assistantApi.listSessions.mockResolvedValueOnce({
+      sessions: [
+        {
+          session_id: 1,
+          title: "Platform overview",
+          preview: "Summarize the hybrid AI platform.",
+        },
+        {
+          session_id: 2,
+          title: "Jerusalem notes",
+          preview: "Export and search the saved conversations.",
+        },
+      ],
+    });
+    assistantApi.getSession
+      .mockResolvedValueOnce({
+        session: {
+          session_id: 1,
+          title: "Platform overview",
+          preview: "Summarize the hybrid AI platform.",
+        },
+        messages: [
+          {
+            message_id: 101,
+            role: "user",
+            content: "Summarize the hybrid AI platform.",
+            created_at: "2026-04-23T07:59:00.000Z",
+            metadata: null,
+          },
+          {
+            message_id: 102,
+            role: "assistant",
+            content: "The platform routes Claude through Bedrock.",
+            created_at: "2026-04-23T08:00:00.000Z",
+            metadata: { request_id: "req-1", output_tokens: 12, latency_ms: 34 },
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        session: {
+          session_id: 2,
+          title: "Jerusalem notes",
+          preview: "Export and search the saved conversations.",
+        },
+        messages: [
+          {
+            message_id: 201,
+            role: "user",
+            content: "How should session export work?",
+            created_at: "2026-04-23T08:03:00.000Z",
+            metadata: null,
+          },
+          {
+            message_id: 202,
+            role: "assistant",
+            content: "Export the active conversation to Markdown or JSON.",
+            created_at: "2026-04-23T08:04:00.000Z",
+            metadata: { request_id: "req-2", output_tokens: 18, latency_ms: 41 },
+          },
+        ],
+      });
+
+    await renderApp(1440, assistantApi);
+    expect(
+      await screen.findByText("The platform routes Claude through Bedrock."),
+    ).toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /Jerusalem notes/i }));
+
+    expect(
+      await screen.findByText("Export the active conversation to Markdown or JSON."),
+    ).toBeInTheDocument();
+    expect(assistantApi.getSession).toHaveBeenNthCalledWith(1, 1);
+    expect(assistantApi.getSession).toHaveBeenNthCalledWith(2, 2);
+  });
+
   it("filters saved sessions by title and preview text", async () => {
     await renderApp(1440);
     const user = userEvent.setup();
