@@ -131,7 +131,12 @@ export default function App() {
   });
 
   useEffect(() => {
+    mountedRef.current = true;
     initializeApp();
+    return () => {
+      mountedRef.current = false;
+      resizeCleanupRef.current();
+    };
   }, []);
 
   useEffect(() => {
@@ -178,14 +183,6 @@ export default function App() {
       setIsControlsOpen(false);
     }
   }, [isCompactLayout]);
-
-  useEffect(
-    () => () => {
-      mountedRef.current = false;
-      resizeCleanupRef.current();
-    },
-    [],
-  );
 
   useEffect(() => {
     if (isRenamingSession) {
