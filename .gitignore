@@ -17,6 +17,7 @@ dist/
 build/
 release/
 *.egg-info/
+CLAUDE.md
 
 infra/.venv/
 node_modules
