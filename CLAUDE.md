@@ -66,7 +66,8 @@ desktop/
     db-path.cjs         # Database path resolution
     preload.cjs         # IPC bridge (assistantApi)
   src/
-    App.jsx             # Root React component (~1300 lines)
+    App.jsx             # Root React component (~1350 lines)
+    main.jsx            # React entry point
     layout.js           # Responsive sidebar/workspace layout
     transcript.js       # Transcript export utilities
     styles.css          # Comprehensive styling (~1200 lines)
@@ -75,6 +76,7 @@ desktop/
 infra/
   stacks/
     platform_baseline_stack.py  # CDK stack (S3, CloudWatch, IAM)
+    config.py           # Stack configuration
   app.py                # CDK app entry point
 scripts/                # Deployment & smoke-test helpers
 tests/                  # Python unit tests (unittest)
@@ -95,12 +97,13 @@ Configuration lives in `.env` at repo root (see `.env.example` for full referenc
 
 - `AI_PROVIDER` — `bedrock` or `anthropic`
 - `AWS_REGION`, `AWS_PROFILE` — AWS config
-- `BEDROCK_INFERENCE_PROFILE_ARN` — preferred Bedrock target (cross-region)
+- `BEDROCK_INFERENCE_PROFILE_ARN`, `BEDROCK_INFERENCE_PROFILE_ID` — preferred Bedrock target (cross-region)
 - `BEDROCK_MODEL_ID` — fallback direct model ID
 - `ANTHROPIC_API_KEY` — for direct Anthropic fallback
 - `MODEL_MAX_TOKENS`, `MODEL_TEMPERATURE` — generation params
 - `CONTEXT_WINDOW_MAX_TURNS`, `CONTEXT_WINDOW_MAX_CHARS` — trimming limits
 - `BEDROCK_GUARDRAIL_*` — optional guardrail config
+- `ASSISTANT_SYSTEM_PROMPT` — customizable system prompt text
 
 ## API endpoints
 
