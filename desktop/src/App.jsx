@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import appIcon from "../assets/icon.png";
 import ChatHeader from "./components/ChatHeader";
 import ChatInput from "./components/ChatInput";
@@ -6,9 +7,21 @@ import MessageThread from "./components/MessageThread";
 import PreferencesPanel from "./components/PreferencesPanel";
 import SessionSidebar from "./components/SessionSidebar";
 import useChat from "./hooks/useChat";
+import { getStoredTheme, getEffectiveTheme, applyTheme, storeTheme } from "./theme";
 
 export default function App() {
   const chat = useChat();
+  const [theme, setTheme] = useState(() => getEffectiveTheme(getStoredTheme()));
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
+
+  function toggleTheme() {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    storeTheme(next);
+  }
 
   return (
     <main className="shell">
@@ -76,6 +89,8 @@ export default function App() {
             activeSession={chat.activeSession}
             renameTitle={chat.renameTitle}
             isBusy={chat.isBusy}
+            theme={theme}
+            onToggleTheme={toggleTheme}
             onToggleSidebar={chat.toggleSidebar}
             onSetIsControlsOpen={chat.setIsControlsOpen}
             onSetIsRenamingSession={chat.setIsRenamingSession}
