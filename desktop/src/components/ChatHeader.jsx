@@ -9,6 +9,8 @@ export default function ChatHeader({
   activeSession,
   renameTitle,
   isBusy,
+  theme,
+  onToggleTheme,
   onToggleSidebar,
   onSetIsControlsOpen,
   onSetIsRenamingSession,
@@ -100,6 +102,14 @@ export default function ChatHeader({
       </div>
       <div className="chat-header-actions">
         <RuntimeSummary health={health} />
+        <button
+          type="button"
+          className="theme-toggle"
+          onClick={onToggleTheme}
+          aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+        >
+          {theme === "dark" ? "Light mode" : "Dark mode"}
+        </button>
         <button
           type="button"
           className="secondary-button compact-button preferences-toggle"
