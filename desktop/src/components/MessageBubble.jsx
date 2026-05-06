@@ -81,7 +81,7 @@ export default function MessageBubble({
         <p className="plain-message">{message.content}</p>
       )}
 
-      {isStreaming ? <footer className="streaming-indicator">Streaming response...</footer> : null}
+      {isStreaming ? <footer className="streaming-indicator" role="status" aria-live="polite">Streaming response...</footer> : null}
 
       {isAssistant && metadata.request_id ? (
         <footer>

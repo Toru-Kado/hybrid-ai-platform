@@ -19,7 +19,7 @@ export default function MessageThread({
   onRegenerate,
 }) {
   return (
-    <div className="thread" ref={threadRef}>
+    <div className="thread" ref={threadRef} role="log" aria-label="Conversation messages" aria-live="polite" aria-relevant="additions">
       {isLoadingHistory ? (
         <ThreadStateCard
           title="Loading conversation"
@@ -62,7 +62,7 @@ export default function MessageThread({
           />
         ))
       )}
-      {isLoading ? <div className="thinking">Assistant is thinking...</div> : null}
+      {isLoading ? <div className="thinking" role="status" aria-label="Assistant is generating a response">Assistant is thinking...</div> : null}
     </div>
   );
 }

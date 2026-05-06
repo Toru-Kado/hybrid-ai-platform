@@ -1,6 +1,6 @@
 export default function ErrorBanner({ errorState, onRetry, onDismiss }) {
   return (
-    <section className={`status-banner status-banner-${errorState.category}`}>
+    <section className={`status-banner status-banner-${errorState.category}`} role="alert" aria-live="assertive">
       <div className="status-banner-copy">
         <strong>{errorState.title}</strong>
         <p>{errorState.message}</p>

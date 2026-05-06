@@ -30,7 +30,12 @@ export default function ChatInput({
         placeholder="Ask the platform assistant..."
       />
 
-      <button type="submit" disabled={isBusy}>
+      <button
+        type="submit"
+        disabled={isBusy}
+        aria-disabled={isBusy}
+        title={isBusy ? "Waiting for the current response to complete" : undefined}
+      >
         {isLoading ? "Thinking..." : streamingMessageId ? "Streaming..." : "Send message"}
       </button>
     </form>

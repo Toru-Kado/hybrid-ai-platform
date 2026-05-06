@@ -59,6 +59,7 @@ export default function SessionSidebar({
               className={`session-item ${
                 activeSession?.session_id === session.session_id ? "active" : ""
               }`}
+              aria-current={activeSession?.session_id === session.session_id ? "true" : undefined}
               onClick={() => {
                 onLoadSession(session.session_id);
                 if (isCompactLayout) {
