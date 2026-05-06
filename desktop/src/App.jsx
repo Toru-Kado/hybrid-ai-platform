@@ -939,6 +939,14 @@ export default function App() {
               id="prompt"
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  if (!isBusy && prompt.trim()) {
+                    submitPrompt(event);
+                  }
+                }
+              }}
               disabled={isBusy}
               placeholder="Ask the platform assistant..."
             />

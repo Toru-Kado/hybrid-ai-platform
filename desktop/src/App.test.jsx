@@ -540,6 +540,49 @@ describe("App layout behavior", () => {
     await screen.findByText("Streaming works in readable chunks.");
   });
 
+  it("submits the prompt when Enter is pressed without Shift", async () => {
+    const { assistantApi } = await renderApp(1440);
+    const user = userEvent.setup();
+
+    const textarea = screen.getByLabelText("Prompt");
+    await user.clear(textarea);
+    await user.type(textarea, "Hello from Enter key");
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => {
+      expect(assistantApi.streamChat).toHaveBeenCalledWith(
+        expect.objectContaining({ prompt: "Hello from Enter key" }),
+        expect.any(Object),
+      );
+    });
+  });
+
+  it("inserts a newline when Shift+Enter is pressed", async () => {
+    await renderApp(1440);
+    const user = userEvent.setup();
+
+    const textarea = screen.getByLabelText("Prompt");
+    await user.clear(textarea);
+    await user.type(textarea, "Line one");
+    await user.keyboard("{Shift>}{Enter}{/Shift}");
+    await user.type(textarea, "Line two");
+
+    expect(textarea.value).toContain("Line one");
+    expect(textarea.value).toContain("Line two");
+    expect(textarea.value).toMatch(/Line one\nLine two/);
+  });
+
+  it("does not submit when Enter is pressed on an empty prompt", async () => {
+    const { assistantApi } = await renderApp(1440);
+    const user = userEvent.setup();
+
+    const textarea = screen.getByLabelText("Prompt");
+    await user.clear(textarea);
+    await user.keyboard("{Enter}");
+
+    expect(assistantApi.streamChat).not.toHaveBeenCalled();
+  });
+
   it("renders assistant replies from live stream events", async () => {
     const gate = { promise: null, resolve: null };
     gate.promise = new Promise((resolve) => {
