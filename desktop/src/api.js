@@ -1,3 +1,4 @@
+import { fetchWithRetry } from "./retry";
 import { transcriptFormatConfig } from "./transcript";
 
 function parseSseChunk(chunk) {
@@ -91,15 +92,15 @@ export async function streamChatOverHttp(url, payload, handlers = {}) {
 
 const fallbackApi = {
   health: async () => {
-    const response = await fetch("http://127.0.0.1:8765/api/health");
+    const response = await fetchWithRetry("http://127.0.0.1:8765/api/health");
     return response.json();
   },
   listSessions: async () => {
-    const response = await fetch("http://127.0.0.1:8765/api/sessions");
+    const response = await fetchWithRetry("http://127.0.0.1:8765/api/sessions");
     return response.json();
   },
   createSession: async (payload) => {
-    const response = await fetch("http://127.0.0.1:8765/api/sessions", {
+    const response = await fetchWithRetry("http://127.0.0.1:8765/api/sessions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload || {}),
@@ -107,7 +108,7 @@ const fallbackApi = {
     return response.json();
   },
   getSession: async (sessionId) => {
-    const response = await fetch(`http://127.0.0.1:8765/api/sessions/${sessionId}`);
+    const response = await fetchWithRetry(`http://127.0.0.1:8765/api/sessions/${sessionId}`);
     const body = await response.json();
     if (!response.ok) {
       throw new Error(body.error || "Failed to load session.");
@@ -115,7 +116,7 @@ const fallbackApi = {
     return body;
   },
   renameSession: async (sessionId, payload) => {
-    const response = await fetch(`http://127.0.0.1:8765/api/sessions/${sessionId}`, {
+    const response = await fetchWithRetry(`http://127.0.0.1:8765/api/sessions/${sessionId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -127,7 +128,7 @@ const fallbackApi = {
     return body;
   },
   deleteSession: async (sessionId) => {
-    const response = await fetch(`http://127.0.0.1:8765/api/sessions/${sessionId}`, {
+    const response = await fetchWithRetry(`http://127.0.0.1:8765/api/sessions/${sessionId}`, {
       method: "DELETE",
     });
     if (!response.ok) {
