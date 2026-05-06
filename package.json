@@ -16,6 +16,7 @@
     "desktop:dist": "npm run desktop:build && electron-builder"
   },
   "dependencies": {
+    "@tanstack/react-virtual": "^3.13.24",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
