@@ -1,5 +1,103 @@
+import { useCallback, useEffect, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import MessageBubble from "./MessageBubble";
 import ThreadStateCard from "./ThreadStateCard";
+
+const ESTIMATED_MESSAGE_HEIGHT = 120;
+const OVERSCAN = 5;
+const VIRTUALIZATION_THRESHOLD = 50;
+
+function VirtualizedMessages({
+  messages,
+  scrollRef,
+  streamingMessageId,
+  isLoading,
+  latestAssistantPair,
+  isBusy,
+  onCopyMessage,
+  onCopyCode,
+  onRegenerate,
+}) {
+  const virtualizer = useVirtualizer({
+    count: messages.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ESTIMATED_MESSAGE_HEIGHT,
+    overscan: OVERSCAN,
+  });
+
+  const scrollToBottom = useCallback(() => {
+    if (messages.length > 0) {
+      virtualizer.scrollToIndex(messages.length - 1, { align: "end" });
+    }
+  }, [messages.length, virtualizer]);
+
+  useEffect(() => {
+    if (streamingMessageId || isLoading) {
+      scrollToBottom();
+    }
+  }, [streamingMessageId, isLoading, messages.length, scrollToBottom]);
+
+  return (
+    <div
+      style={{
+        height: `${virtualizer.getTotalSize()}px`,
+        width: "100%",
+        position: "relative",
+      }}
+    >
+      {virtualizer.getVirtualItems().map((virtualItem) => {
+        const message = messages[virtualItem.index];
+        return (
+          <div
+            key={message.message_id}
+            data-index={virtualItem.index}
+            ref={virtualizer.measureElement}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              transform: `translateY(${virtualItem.start}px)`,
+            }}
+          >
+            <MessageBubble
+              message={message}
+              isStreaming={streamingMessageId === message.message_id}
+              isLatestAssistant={latestAssistantPair?.assistantMessage.message_id === message.message_id}
+              canRegenerate={!isBusy && latestAssistantPair?.assistantMessage.message_id === message.message_id}
+              onCopyMessage={() => onCopyMessage(message)}
+              onCopyCode={onCopyCode}
+              onRegenerate={onRegenerate}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PlainMessages({
+  messages,
+  streamingMessageId,
+  latestAssistantPair,
+  isBusy,
+  onCopyMessage,
+  onCopyCode,
+  onRegenerate,
+}) {
+  return messages.map((message) => (
+    <MessageBubble
+      key={message.message_id}
+      message={message}
+      isStreaming={streamingMessageId === message.message_id}
+      isLatestAssistant={latestAssistantPair?.assistantMessage.message_id === message.message_id}
+      canRegenerate={!isBusy && latestAssistantPair?.assistantMessage.message_id === message.message_id}
+      onCopyMessage={() => onCopyMessage(message)}
+      onCopyCode={onCopyCode}
+      onRegenerate={onRegenerate}
+    />
+  ));
+}
 
 export default function MessageThread({
   threadRef,
@@ -18,8 +116,27 @@ export default function MessageThread({
   onCopyCode,
   onRegenerate,
 }) {
+  const scrollRef = useRef(null);
+  const useVirtual = messages.length >= VIRTUALIZATION_THRESHOLD;
+
+  const showMessages = !isLoadingHistory && errorState?.context !== "history" && messages.length > 0;
+
   return (
-    <div className="thread" ref={threadRef} role="log" aria-label="Conversation messages" aria-live="polite" aria-relevant="additions">
+    <div
+      className="thread"
+      ref={(node) => {
+        scrollRef.current = node;
+        if (typeof threadRef === "function") {
+          threadRef(node);
+        } else if (threadRef) {
+          threadRef.current = node;
+        }
+      }}
+      role="log"
+      aria-label="Conversation messages"
+      aria-live="polite"
+      aria-relevant="additions"
+    >
       {isLoadingHistory ? (
         <ThreadStateCard
           title="Loading conversation"
@@ -48,20 +165,32 @@ export default function MessageThread({
           actionLabel={!activeSession && !isLoadingSessions ? "New chat" : null}
           onAction={!activeSession && !isLoadingSessions ? onCreateSession : null}
         />
-      ) : (
-        messages.map((message) => (
-          <MessageBubble
-            key={message.message_id}
-            message={message}
-            isStreaming={streamingMessageId === message.message_id}
-            isLatestAssistant={latestAssistantPair?.assistantMessage.message_id === message.message_id}
-            canRegenerate={!isBusy && latestAssistantPair?.assistantMessage.message_id === message.message_id}
-            onCopyMessage={() => onCopyMessage(message)}
-            onCopyCode={onCopyCode}
-            onRegenerate={onRegenerate}
-          />
-        ))
-      )}
+      ) : null}
+
+      {showMessages && useVirtual ? (
+        <VirtualizedMessages
+          messages={messages}
+          scrollRef={scrollRef}
+          streamingMessageId={streamingMessageId}
+          isLoading={isLoading}
+          latestAssistantPair={latestAssistantPair}
+          isBusy={isBusy}
+          onCopyMessage={onCopyMessage}
+          onCopyCode={onCopyCode}
+          onRegenerate={onRegenerate}
+        />
+      ) : showMessages ? (
+        <PlainMessages
+          messages={messages}
+          streamingMessageId={streamingMessageId}
+          latestAssistantPair={latestAssistantPair}
+          isBusy={isBusy}
+          onCopyMessage={onCopyMessage}
+          onCopyCode={onCopyCode}
+          onRegenerate={onRegenerate}
+        />
+      ) : null}
+
       {isLoading ? <div className="thinking" role="status" aria-label="Assistant is generating a response">Assistant is thinking...</div> : null}
     </div>
   );
