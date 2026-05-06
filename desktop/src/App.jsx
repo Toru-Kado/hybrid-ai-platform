@@ -25,6 +25,7 @@ export default function App() {
 
   return (
     <main className="shell">
+      <a href="#prompt" className="skip-link">Skip to chat input</a>
       <section className="hero">
         <div>
           <p className="eyebrow">Toru Kado Desktop POC</p>
@@ -111,7 +112,7 @@ export default function App() {
               onDismiss={() => chat.setErrorState(null)}
             />
           ) : null}
-          {chat.notice ? <div className="notice">{chat.notice}</div> : null}
+          {chat.notice ? <div className="notice" role="status" aria-live="polite">{chat.notice}</div> : null}
 
           <PreferencesPanel
             isControlsOpen={chat.isControlsOpen}
