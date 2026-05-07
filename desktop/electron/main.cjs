@@ -244,6 +244,50 @@ ipcMain.handle("assistant:chat", async (_event, payload) => {
   return body;
 });
 
+ipcMain.handle("assistant:getAwsProfile", async () => {
+  return process.env.AWS_PROFILE || null;
+});
+
+ipcMain.handle("assistant:ssoLogin", async (_event, profileName) => {
+  const profile = profileName || process.env.AWS_PROFILE;
+  if (!profile) {
+    throw new Error("No AWS profile configured for SSO login.");
+  }
+
+  return new Promise((resolve, reject) => {
+    const loginProcess = spawn("aws", ["sso", "login", "--profile", profile], {
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env },
+    });
+
+    let stderr = "";
+
+    loginProcess.stdout.on("data", (chunk) => {
+      console.log(`[aws-sso-login] ${chunk.toString().trim()}`);
+    });
+    loginProcess.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+      console.error(`[aws-sso-login] ${chunk.toString().trim()}`);
+    });
+
+    loginProcess.on("exit", (code) => {
+      if (code === 0) {
+        resolve({ success: true, profile });
+      } else {
+        reject(
+          new Error(
+            `aws sso login failed (exit code ${code}): ${stderr.trim() || "Unknown error"}`,
+          ),
+        );
+      }
+    });
+
+    loginProcess.on("error", (err) => {
+      reject(new Error(`Failed to start aws sso login: ${err.message}`));
+    });
+  });
+});
+
 app.whenReady().then(async () => {
   try {
     applyApplicationIcon();

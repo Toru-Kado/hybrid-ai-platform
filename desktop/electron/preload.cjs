@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld("assistantApi", {
   chat: (payload) => ipcRenderer.invoke("assistant:chat", payload),
   streamChat: (payload, handlers) =>
     streamChatOverHttp(`${API_BASE_URL}/api/chat/stream`, payload, handlers),
+  getAwsProfile: () => ipcRenderer.invoke("assistant:getAwsProfile"),
+  ssoLogin: (profileName) => ipcRenderer.invoke("assistant:ssoLogin", profileName),
 });
 
 async function streamChatOverHttp(url, payload, handlers = {}) {

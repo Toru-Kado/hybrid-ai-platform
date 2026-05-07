@@ -4,6 +4,7 @@ import { api, streamChatApi } from "../api";
 import { readCompactViewport, DEFAULT_SIDEBAR_WIDTH, clampSidebarWidth } from "../layout";
 import {
   buildErrorState,
+  classifyErrorCategory,
   findLatestAssistantPair,
   mergeSession,
   replaceSession,
@@ -318,6 +319,36 @@ export default function useChat() {
         },
       });
     } catch (caught) {
+      const isAuthError =
+        !requestPayload._ssoRetried &&
+        classifyErrorCategory(caught?.message || "") === "auth" &&
+        typeof window.assistantApi?.ssoLogin === "function";
+
+      if (isAuthError) {
+        setMessages((current) =>
+          current.filter((item) => {
+            if (item.message_id === assistantMessageId) {
+              return false;
+            }
+            if (!persistedUserMessage && item.message_id === pendingUserMessage.message_id) {
+              return false;
+            }
+            return true;
+          }),
+        );
+        setIsLoading(false);
+        setStreamingMessageId(null);
+        setNotice("AWS session expired. Signing in\u2026");
+        try {
+          await window.assistantApi.ssoLogin();
+          setNotice("AWS session refreshed. Retrying\u2026");
+          await sendPrompt({ ...requestPayload, _ssoRetried: true });
+          return;
+        } catch (_loginError) {
+          // SSO login failed — fall through to show the original error
+        }
+      }
+
       setMessages((current) =>
         current.filter((item) => {
           if (item.message_id === assistantMessageId) {
