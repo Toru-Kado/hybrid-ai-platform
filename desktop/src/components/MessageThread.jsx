@@ -14,6 +14,8 @@ function VirtualizedMessages({
   isLoading,
   latestAssistantPair,
   isBusy,
+  searchQuery,
+  highlightedMessageId,
   onCopyMessage,
   onCopyCode,
   onRegenerate,
@@ -36,6 +38,15 @@ function VirtualizedMessages({
       scrollToBottom();
     }
   }, [streamingMessageId, isLoading, messages.length, scrollToBottom]);
+
+  useEffect(() => {
+    if (highlightedMessageId) {
+      const index = messages.findIndex((m) => m.message_id === highlightedMessageId);
+      if (index >= 0) {
+        virtualizer.scrollToIndex(index, { align: "center" });
+      }
+    }
+  }, [highlightedMessageId, messages, virtualizer]);
 
   return (
     <div
@@ -65,6 +76,8 @@ function VirtualizedMessages({
               isStreaming={streamingMessageId === message.message_id}
               isLatestAssistant={latestAssistantPair?.assistantMessage.message_id === message.message_id}
               canRegenerate={!isBusy && latestAssistantPair?.assistantMessage.message_id === message.message_id}
+              searchQuery={searchQuery}
+              isHighlighted={highlightedMessageId === message.message_id}
               onCopyMessage={() => onCopyMessage(message)}
               onCopyCode={onCopyCode}
               onRegenerate={onRegenerate}
@@ -81,6 +94,8 @@ function PlainMessages({
   streamingMessageId,
   latestAssistantPair,
   isBusy,
+  searchQuery,
+  highlightedMessageId,
   onCopyMessage,
   onCopyCode,
   onRegenerate,
@@ -92,6 +107,8 @@ function PlainMessages({
       isStreaming={streamingMessageId === message.message_id}
       isLatestAssistant={latestAssistantPair?.assistantMessage.message_id === message.message_id}
       canRegenerate={!isBusy && latestAssistantPair?.assistantMessage.message_id === message.message_id}
+      searchQuery={searchQuery}
+      isHighlighted={highlightedMessageId === message.message_id}
       onCopyMessage={() => onCopyMessage(message)}
       onCopyCode={onCopyCode}
       onRegenerate={onRegenerate}
@@ -110,6 +127,8 @@ export default function MessageThread({
   streamingMessageId,
   latestAssistantPair,
   isBusy,
+  searchQuery,
+  highlightedMessageId,
   onRetryFromError,
   onCreateSession,
   onCopyMessage,
@@ -120,6 +139,15 @@ export default function MessageThread({
   const useVirtual = messages.length >= VIRTUALIZATION_THRESHOLD;
 
   const showMessages = !isLoadingHistory && errorState?.context !== "history" && messages.length > 0;
+
+  useEffect(() => {
+    if (!useVirtual && highlightedMessageId && scrollRef.current) {
+      const el = scrollRef.current.querySelector(`.message.search-active`);
+      if (el) {
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+    }
+  }, [highlightedMessageId, useVirtual]);
 
   return (
     <div
@@ -175,6 +203,8 @@ export default function MessageThread({
           isLoading={isLoading}
           latestAssistantPair={latestAssistantPair}
           isBusy={isBusy}
+          searchQuery={searchQuery}
+          highlightedMessageId={highlightedMessageId}
           onCopyMessage={onCopyMessage}
           onCopyCode={onCopyCode}
           onRegenerate={onRegenerate}
@@ -185,6 +215,8 @@ export default function MessageThread({
           streamingMessageId={streamingMessageId}
           latestAssistantPair={latestAssistantPair}
           isBusy={isBusy}
+          searchQuery={searchQuery}
+          highlightedMessageId={highlightedMessageId}
           onCopyMessage={onCopyMessage}
           onCopyCode={onCopyCode}
           onRegenerate={onRegenerate}

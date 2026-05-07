@@ -152,6 +152,20 @@ const fallbackApi = {
     URL.revokeObjectURL(url);
     return { canceled: false, path: link.download };
   },
+  searchMessages: async (query, options = {}) => {
+    const params = new URLSearchParams({ q: query });
+    if (options.sessionId) params.set("session_id", String(options.sessionId));
+    if (options.limit) params.set("limit", String(options.limit));
+    if (options.offset) params.set("offset", String(options.offset));
+    const response = await fetchWithRetry(
+      `http://127.0.0.1:8765/api/search?${params}`
+    );
+    const body = await response.json();
+    if (!response.ok) {
+      throw new Error(body.error || "Search failed.");
+    }
+    return body;
+  },
   streamChat: async (payload, handlers) => {
     return streamChatOverHttp("http://127.0.0.1:8765/api/chat/stream", payload, handlers);
   },

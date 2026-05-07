@@ -2,15 +2,22 @@ import { useEffect, useState } from "react";
 import appIcon from "../assets/icon.png";
 import ChatHeader from "./components/ChatHeader";
 import ChatInput from "./components/ChatInput";
+import CrossSessionResults from "./components/CrossSessionResults";
 import ErrorBanner from "./components/ErrorBanner";
 import MessageThread from "./components/MessageThread";
 import PreferencesPanel from "./components/PreferencesPanel";
+import SearchBar from "./components/SearchBar";
 import SessionSidebar from "./components/SessionSidebar";
 import useChat from "./hooks/useChat";
+import useMessageSearch from "./hooks/useMessageSearch";
 import { getStoredTheme, getEffectiveTheme, applyTheme, storeTheme } from "./theme";
 
 export default function App() {
   const chat = useChat();
+  const search = useMessageSearch({
+    messages: chat.messages,
+    activeSession: chat.activeSession,
+  });
   const [theme, setTheme] = useState(() => getEffectiveTheme(getStoredTheme()));
 
   useEffect(() => {
@@ -126,6 +133,28 @@ export default function App() {
             onSetMaxTokens={chat.setMaxTokens}
           />
 
+          <SearchBar
+            isSearchOpen={search.isSearchOpen}
+            searchQuery={search.searchQuery}
+            searchMode={search.searchMode}
+            localResults={search.localResults}
+            crossResults={search.crossResults}
+            activeMatchIndex={search.activeMatchIndex}
+            isSearching={search.isSearching}
+            onSetSearchQuery={search.setSearchQuery}
+            onSetSearchMode={search.setSearchMode}
+            onNavigateMatch={search.navigateMatch}
+            onClose={search.closeSearch}
+          />
+
+          {search.isSearchOpen && search.searchMode === "all" ? (
+            <CrossSessionResults
+              results={search.crossResults}
+              activeMatchIndex={search.activeMatchIndex}
+              onSelectResult={(result) => chat.loadSession(result.session_id)}
+            />
+          ) : null}
+
           <MessageThread
             threadRef={chat.threadRef}
             messages={chat.messages}
@@ -137,6 +166,8 @@ export default function App() {
             streamingMessageId={chat.streamingMessageId}
             latestAssistantPair={chat.latestAssistantPair}
             isBusy={chat.isBusy}
+            searchQuery={search.isSearchOpen ? search.searchQuery : ""}
+            highlightedMessageId={search.highlightedMessageId}
             onRetryFromError={chat.retryFromError}
             onCreateSession={chat.createSession}
             onCopyMessage={chat.copyMessageContent}

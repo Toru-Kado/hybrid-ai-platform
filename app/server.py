@@ -8,7 +8,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from app.clients import AssistantClientError, create_runtime_client
 from app.clients.base import ConversationTurn
@@ -69,6 +69,36 @@ class AssistantApiHandler(BaseHTTPRequestHandler):
                 return
 
             self._send_json(HTTPStatus.OK, payload)
+            return
+
+        if path == "/api/search":
+            parsed = urlparse(self.path)
+            params = parse_qs(parsed.query)
+            query = params.get("q", [""])[0].strip()
+            if not query:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST, {"error": "q parameter is required."}
+                )
+                return
+            session_id_raw = params.get("session_id", [None])[0]
+            try:
+                session_id = int(session_id_raw) if session_id_raw else None
+                limit = min(int(params.get("limit", ["50"])[0]), 100)
+                offset = max(int(params.get("offset", ["0"])[0]), 0)
+            except (ValueError, TypeError) as exc:
+                self._send_json(
+                    HTTPStatus.BAD_REQUEST,
+                    {"error": "Invalid query parameters."},
+                )
+                return
+
+            results = self.state.session_store.search_messages(
+                query, session_id=session_id, limit=limit, offset=offset
+            )
+            self._send_json(
+                HTTPStatus.OK,
+                {"results": [r.to_dict() for r in results], "query": query},
+            )
             return
 
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "Not found"})
