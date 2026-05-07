@@ -11,6 +11,7 @@ export default function useMessageSearch({ messages, activeSession }) {
   const [crossResults, setCrossResults] = useState([]);
   const [activeMatchIndex, setActiveMatchIndex] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
+  const [targetMessageId, setTargetMessageId] = useState(null);
   const debounceRef = useRef(null);
 
   useEffect(() => {
@@ -94,12 +95,17 @@ export default function useMessageSearch({ messages, activeSession }) {
     [searchMode, localResults, crossResults]
   );
 
+  function selectCrossResult(result) {
+    setTargetMessageId(result.message_id);
+  }
+
   function closeSearch() {
     setIsSearchOpen(false);
     setSearchQuery("");
     setLocalResults([]);
     setCrossResults([]);
     setActiveMatchIndex(0);
+    setTargetMessageId(null);
   }
 
   const activeLocalMatch =
@@ -107,7 +113,13 @@ export default function useMessageSearch({ messages, activeSession }) {
       ? localResults[activeMatchIndex]
       : null;
 
-  const highlightedMessageId = activeLocalMatch?.messageId ?? null;
+  const activeCrossResult =
+    searchMode === "all" && crossResults.length > 0
+      ? crossResults[activeMatchIndex]
+      : null;
+
+  const highlightedMessageId =
+    activeLocalMatch?.messageId ?? activeCrossResult?.message_id ?? targetMessageId ?? null;
 
   return {
     isSearchOpen,
@@ -119,9 +131,11 @@ export default function useMessageSearch({ messages, activeSession }) {
     localResults,
     crossResults,
     activeMatchIndex,
+    activeCrossResult,
     isSearching,
     highlightedMessageId,
     navigateMatch,
+    selectCrossResult,
     closeSearch,
   };
 }

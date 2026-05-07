@@ -1,12 +1,24 @@
+import { useEffect, useRef } from "react";
+
 export default function CrossSessionResults({
   results,
   activeMatchIndex,
   onSelectResult,
 }) {
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const active = containerRef.current.querySelector("[aria-selected='true']");
+    if (active) {
+      active.scrollIntoView({ block: "nearest" });
+    }
+  }, [activeMatchIndex]);
+
   if (!results || results.length === 0) return null;
 
   return (
-    <div className="cross-session-results" role="listbox" aria-label="Search results across sessions">
+    <div ref={containerRef} className="cross-session-results" role="listbox" aria-label="Search results across sessions">
       {results.map((result, index) => (
         <button
           key={`${result.session_id}-${result.message_id}`}

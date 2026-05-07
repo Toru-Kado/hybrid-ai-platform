@@ -24,6 +24,12 @@ export default function App() {
     applyTheme(theme);
   }, [theme]);
 
+  useEffect(() => {
+    if (search.activeCrossResult) {
+      chat.loadSession(search.activeCrossResult.session_id);
+    }
+  }, [search.activeCrossResult]);
+
   function toggleTheme() {
     const next = theme === "dark" ? "light" : "dark";
     setTheme(next);
@@ -151,7 +157,10 @@ export default function App() {
             <CrossSessionResults
               results={search.crossResults}
               activeMatchIndex={search.activeMatchIndex}
-              onSelectResult={(result) => chat.loadSession(result.session_id)}
+              onSelectResult={(result) => {
+                search.selectCrossResult(result);
+                chat.loadSession(result.session_id);
+              }}
             />
           ) : null}
 
