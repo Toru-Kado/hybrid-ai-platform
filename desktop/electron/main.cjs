@@ -244,6 +244,20 @@ ipcMain.handle("assistant:chat", async (_event, payload) => {
   return body;
 });
 
+ipcMain.handle("assistant:searchMessages", async (_event, query, options = {}) => {
+  const params = new URLSearchParams({ q: query });
+  if (options.sessionId) params.set("session_id", String(options.sessionId));
+  if (options.limit) params.set("limit", String(options.limit));
+  if (options.offset) params.set("offset", String(options.offset));
+
+  const response = await fetch(`${API_BASE_URL}/api/search?${params}`);
+  const body = await response.json();
+  if (!response.ok) {
+    throw new Error(body.error || "Search failed.");
+  }
+  return body;
+});
+
 ipcMain.handle("assistant:getAwsProfile", async () => {
   return process.env.AWS_PROFILE || null;
 });

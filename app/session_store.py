@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def _utc_now() -> str:
@@ -20,6 +20,28 @@ def _default_title(prompt: str) -> str:
     if not compact:
         return "New session"
     return compact[:72].rstrip()
+
+
+@dataclass(slots=True)
+class SearchResult:
+    message_id: int
+    session_id: int
+    role: str
+    content: str
+    created_at: str
+    session_title: str
+    snippet: str
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "message_id": self.message_id,
+            "session_id": self.session_id,
+            "role": self.role,
+            "content": self.content,
+            "created_at": self.created_at,
+            "session_title": self.session_title,
+            "snippet": self.snippet,
+        }
 
 
 @dataclass(slots=True)
@@ -256,7 +278,9 @@ class SessionStore:
             )
             if current_version < 1:
                 self._migrate_to_v1(connection)
-                connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+            if current_version < 2:
+                self._migrate_to_v2(connection)
+            connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
             connection.commit()
 
     def _migrate_to_v1(self, connection: sqlite3.Connection) -> None:
@@ -295,6 +319,121 @@ class SessionStore:
             ON messages (session_id, id)
             """
         )
+
+    def _migrate_to_v2(self, connection: sqlite3.Connection) -> None:
+        connection.execute(
+            """
+            CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+                content,
+                content='messages',
+                content_rowid='id'
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO messages_fts(rowid, content)
+            SELECT id, content FROM messages
+            """
+        )
+        connection.execute(
+            """
+            CREATE TRIGGER IF NOT EXISTS messages_fts_insert
+            AFTER INSERT ON messages
+            BEGIN
+                INSERT INTO messages_fts(rowid, content) VALUES (new.id, new.content);
+            END
+            """
+        )
+        connection.execute(
+            """
+            CREATE TRIGGER IF NOT EXISTS messages_fts_delete
+            AFTER DELETE ON messages
+            BEGIN
+                INSERT INTO messages_fts(messages_fts, rowid, content)
+                VALUES('delete', old.id, old.content);
+            END
+            """
+        )
+        connection.execute(
+            """
+            CREATE TRIGGER IF NOT EXISTS messages_fts_update
+            AFTER UPDATE OF content ON messages
+            BEGIN
+                INSERT INTO messages_fts(messages_fts, rowid, content)
+                VALUES('delete', old.id, old.content);
+                INSERT INTO messages_fts(rowid, content) VALUES (new.id, new.content);
+            END
+            """
+        )
+
+    def search_messages(
+        self,
+        query: str,
+        *,
+        session_id: int | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[SearchResult]:
+        sanitized = self._sanitize_fts_query(query)
+        if not sanitized:
+            return []
+
+        with closing(self._connect()) as connection:
+            if session_id is not None:
+                rows = connection.execute(
+                    """
+                    SELECT
+                        m.id, m.session_id, m.role, m.content, m.created_at,
+                        s.title AS session_title,
+                        snippet(messages_fts, 0, '<mark>', '</mark>', '...', 32) AS snippet
+                    FROM messages_fts
+                    JOIN messages m ON m.id = messages_fts.rowid
+                    JOIN sessions s ON s.id = m.session_id
+                    WHERE messages_fts MATCH ?
+                      AND m.session_id = ?
+                    ORDER BY rank
+                    LIMIT ? OFFSET ?
+                    """,
+                    (sanitized, session_id, limit, offset),
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    """
+                    SELECT
+                        m.id, m.session_id, m.role, m.content, m.created_at,
+                        s.title AS session_title,
+                        snippet(messages_fts, 0, '<mark>', '</mark>', '...', 32) AS snippet
+                    FROM messages_fts
+                    JOIN messages m ON m.id = messages_fts.rowid
+                    JOIN sessions s ON s.id = m.session_id
+                    WHERE messages_fts MATCH ?
+                    ORDER BY rank
+                    LIMIT ? OFFSET ?
+                    """,
+                    (sanitized, limit, offset),
+                ).fetchall()
+
+        return [
+            SearchResult(
+                message_id=int(row["id"]),
+                session_id=int(row["session_id"]),
+                role=str(row["role"]),
+                content=str(row["content"]),
+                created_at=str(row["created_at"]),
+                session_title=str(row["session_title"]),
+                snippet=str(row["snippet"]),
+            )
+            for row in rows
+        ]
+
+    def _sanitize_fts_query(self, query: str) -> str:
+        stripped = query.strip()
+        if not stripped:
+            return ""
+        terms = stripped.split()
+        safe_terms = ['"' + term.replace('"', '""') + '"' for term in terms if term]
+        return " ".join(safe_terms)
 
     def _summary_from_row(self, row: sqlite3.Row) -> SessionSummary:
         return SessionSummary(

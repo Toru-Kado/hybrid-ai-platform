@@ -1,6 +1,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { highlightTextSegment, highlightChildren } from "../highlight";
 import { formatTimestamp } from "../utils";
 
 export default function MessageBubble({
@@ -8,6 +9,8 @@ export default function MessageBubble({
   isStreaming = false,
   isLatestAssistant = false,
   canRegenerate = false,
+  searchQuery = "",
+  isHighlighted = false,
   onCopyMessage,
   onCopyCode,
   onRegenerate,
@@ -16,7 +19,7 @@ export default function MessageBubble({
   const metadata = message.metadata || {};
 
   return (
-    <article className={`message ${isAssistant ? "assistant" : "user"}`}>
+    <article className={`message ${isAssistant ? "assistant" : "user"}${isHighlighted ? " search-active" : ""}`}>
       <header>
         <div className="message-heading">
           <strong>{isAssistant ? "Assistant" : "You"}</strong>
@@ -72,13 +75,33 @@ export default function MessageBubble({
                   </div>
                 );
               },
+              ...(searchQuery
+                ? {
+                    p({ children, ...props }) {
+                      return <p {...props}>{highlightChildren(children, searchQuery)}</p>;
+                    },
+                    li({ children, ...props }) {
+                      return <li {...props}>{highlightChildren(children, searchQuery)}</li>;
+                    },
+                    td({ children, ...props }) {
+                      return <td {...props}>{highlightChildren(children, searchQuery)}</td>;
+                    },
+                    th({ children, ...props }) {
+                      return <th {...props}>{highlightChildren(children, searchQuery)}</th>;
+                    },
+                  }
+                : {}),
             }}
           >
             {message.content}
           </ReactMarkdown>
         </div>
       ) : (
-        <p className="plain-message">{message.content}</p>
+        <p className="plain-message">
+          {searchQuery
+            ? highlightTextSegment(message.content, searchQuery)
+            : message.content}
+        </p>
       )}
 
       {isStreaming ? <footer className="streaming-indicator" role="status" aria-live="polite">Streaming response...</footer> : null}

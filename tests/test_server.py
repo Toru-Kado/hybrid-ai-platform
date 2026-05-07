@@ -355,5 +355,82 @@ class ServerTests(unittest.TestCase):
         raised.exception.close()
 
 
+    def test_search_requires_query_param(self):
+        server, _client = self._start_server()
+
+        with self.assertRaises(urllib.error.HTTPError) as raised:
+            urllib.request.urlopen(
+                urllib.request.Request(
+                    f"{self._server_url(server)}/api/search",
+                    method="GET",
+                )
+            )
+
+        self.assertEqual(raised.exception.code, 400)
+        body = json.loads(raised.exception.read().decode("utf-8"))
+        self.assertIn("q parameter", body["error"])
+        raised.exception.close()
+
+    def test_search_returns_matching_results(self):
+        server, _client = self._start_server()
+        self._json_request(
+            f"{self._server_url(server)}/api/chat",
+            method="POST",
+            payload={"prompt": "banana smoothie recipe"},
+        )
+        self._json_request(
+            f"{self._server_url(server)}/api/chat",
+            method="POST",
+            payload={"prompt": "apple pie recipe"},
+        )
+
+        payload = self._json_request(
+            f"{self._server_url(server)}/api/search?q=banana"
+        )
+
+        self.assertIn("results", payload)
+        self.assertEqual(payload["query"], "banana")
+        self.assertTrue(len(payload["results"]) >= 1)
+        self.assertTrue(
+            any("banana" in r["content"].lower() for r in payload["results"])
+        )
+
+    def test_search_respects_session_id_filter(self):
+        server, _client = self._start_server()
+        r1 = self._json_request(
+            f"{self._server_url(server)}/api/chat",
+            method="POST",
+            payload={"prompt": "unique mango in session one"},
+        )
+        r2 = self._json_request(
+            f"{self._server_url(server)}/api/chat",
+            method="POST",
+            payload={"prompt": "unique mango in session two"},
+        )
+        sid1 = r1["session"]["session_id"]
+
+        payload = self._json_request(
+            f"{self._server_url(server)}/api/search?q=mango&session_id={sid1}"
+        )
+
+        for result in payload["results"]:
+            self.assertEqual(result["session_id"], sid1)
+
+    def test_search_respects_limit(self):
+        server, _client = self._start_server()
+        for i in range(5):
+            self._json_request(
+                f"{self._server_url(server)}/api/chat",
+                method="POST",
+                payload={"prompt": f"limitword message {i}"},
+            )
+
+        payload = self._json_request(
+            f"{self._server_url(server)}/api/search?q=limitword&limit=2"
+        )
+
+        self.assertLessEqual(len(payload["results"]), 2)
+
+
 if __name__ == "__main__":
     unittest.main()
