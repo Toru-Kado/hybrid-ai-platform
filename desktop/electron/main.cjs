@@ -4,6 +4,8 @@ const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 const { resolveDesktopDbPath } = require("./db-path.cjs");
+const { getSavedWindowBounds, saveWindowBounds } = require("./preferences.cjs");
+const { buildAppMenu } = require("./menu.cjs");
 
 const API_HOST = "127.0.0.1";
 const API_PORT = Number(process.env.HYBRID_AI_API_PORT || 8765);
@@ -120,9 +122,13 @@ async function waitForBackend() {
 }
 
 async function createWindow() {
+  const savedBounds = getSavedWindowBounds();
+
   mainWindow = new BrowserWindow({
-    width: 1180,
-    height: 820,
+    width: savedBounds?.width || 1180,
+    height: savedBounds?.height || 820,
+    ...(savedBounds?.x !== undefined && { x: savedBounds.x }),
+    ...(savedBounds?.y !== undefined && { y: savedBounds.y }),
     minWidth: 920,
     minHeight: 680,
     show: false,
@@ -135,6 +141,16 @@ async function createWindow() {
       nodeIntegration: false,
     },
   });
+
+  if (savedBounds?.maximized) {
+    mainWindow.maximize();
+  }
+
+  mainWindow.on("close", () => {
+    saveWindowBounds(mainWindow);
+  });
+
+  buildAppMenu(mainWindow);
 
   mainWindow.once("ready-to-show", () => mainWindow.show());
 
