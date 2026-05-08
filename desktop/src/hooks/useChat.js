@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { api, streamChatApi } from "../api";
 import { readCompactViewport, DEFAULT_SIDEBAR_WIDTH, clampSidebarWidth } from "../layout";
+import { getStoredSidebarPrefs, storeSidebarPrefs } from "../sidebar-prefs";
 import {
   buildErrorState,
   classifyErrorCategory,
@@ -31,9 +32,16 @@ export default function useChat() {
   const [sessionFilter, setSessionFilter] = useState("");
   const [streamingMessageId, setStreamingMessageId] = useState(null);
   const [isCompactLayout, setIsCompactLayout] = useState(() => readCompactViewport());
-  const [isSidebarOpen, setIsSidebarOpen] = useState(() => !readCompactViewport());
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    if (readCompactViewport()) return false;
+    const stored = getStoredSidebarPrefs();
+    return stored && typeof stored.isOpen === "boolean" ? stored.isOpen : true;
+  });
   const [isControlsOpen, setIsControlsOpen] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const stored = getStoredSidebarPrefs();
+    return stored && Number.isFinite(stored.width) ? clampSidebarWidth(stored.width) : DEFAULT_SIDEBAR_WIDTH;
+  });
 
   const threadRef = useRef(null);
   const nextThreadScrollRef = useRef("top");
@@ -106,6 +114,10 @@ export default function useChat() {
       setIsControlsOpen(false);
     }
   }, [isCompactLayout]);
+
+  useEffect(() => {
+    storeSidebarPrefs({ width: sidebarWidth, isOpen: isSidebarOpen });
+  }, [sidebarWidth, isSidebarOpen]);
 
   useEffect(() => {
     if (isRenamingSession) {
