@@ -20,6 +20,11 @@ contextBridge.exposeInMainWorld("assistantApi", {
     ipcRenderer.invoke("assistant:searchMessages", query, options),
   getAwsProfile: () => ipcRenderer.invoke("assistant:getAwsProfile"),
   ssoLogin: (profileName) => ipcRenderer.invoke("assistant:ssoLogin", profileName),
+  onMenuAction: (callback) => {
+    const listener = (_event, action) => callback(action);
+    ipcRenderer.on("menu:action", listener);
+    return () => ipcRenderer.removeListener("menu:action", listener);
+  },
 });
 
 async function streamChatOverHttp(url, payload, handlers = {}) {
