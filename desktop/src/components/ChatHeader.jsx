@@ -22,7 +22,7 @@ export default function ChatHeader({
   return (
     <header className="chat-header">
       <div className="chat-heading">
-        {isCompactLayout ? (
+        {isCompactLayout || !isSidebarOpen ? (
           <button
             type="button"
             className="secondary-button sidebar-toggle"

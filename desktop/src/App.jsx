@@ -77,7 +77,7 @@ export default function App() {
       </section>
 
       <section
-        className={`chat-layout ${chat.isCompactLayout ? "compact" : ""}`}
+        className={`chat-layout ${chat.isCompactLayout ? "compact" : ""}${!chat.isSidebarOpen && !chat.isCompactLayout ? " sidebar-collapsed" : ""}`}
         style={{ "--sidebar-width": `${chat.sidebarWidth}px` }}
       >
         {chat.isCompactLayout && chat.isSidebarOpen ? (
