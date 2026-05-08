@@ -42,7 +42,7 @@ export function buildErrorState(message, options = {}) {
 
 export function classifyErrorCategory(message) {
   if (
-    /accessdenied|unauthoriz|expiredtoken|security token|credentials|credential|aws auth|aws sso|sso login|assume role|not authorized/i.test(
+    /accessdenied|unauthoriz|expiredtoken|expired.*token|token.*expired|security token|credentials|credential|aws auth|aws sso|sso login|retrieving token.*sso|assume role|not authorized/i.test(
       message,
     )
   ) {
