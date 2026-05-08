@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, dialog } = require("electron");
+const { buildAppMenu } = require("./menu.cjs");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -308,6 +309,7 @@ app.whenReady().then(async () => {
     startBackend();
     await waitForBackend();
     await createWindow();
+    buildAppMenu(mainWindow);
   } catch (error) {
     dialog.showErrorBox("Hybrid AI Platform failed to start", String(error));
     app.quit();

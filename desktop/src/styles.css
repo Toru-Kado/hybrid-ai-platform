@@ -449,6 +449,19 @@ h2 {
   position: relative;
 }
 
+.chat-layout.sidebar-collapsed {
+  grid-template-columns: 0px 0px minmax(0, 1fr);
+  gap: 0;
+}
+
+.chat-layout.sidebar-collapsed .sidebar {
+  display: none;
+}
+
+.chat-layout.sidebar-collapsed .sidebar-resizer {
+  display: none;
+}
+
 .sidebar,
 .chat-panel {
   border-radius: 28px;

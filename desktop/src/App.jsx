@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import appIcon from "../assets/icon.png";
 import ChatHeader from "./components/ChatHeader";
 import ChatInput from "./components/ChatInput";
@@ -30,6 +30,27 @@ export default function App() {
     }
   }, [search.activeCrossResult]);
 
+  const chatRef = useRef(chat);
+  chatRef.current = chat;
+
+  useEffect(() => {
+    if (!window.assistantApi?.onMenuAction) return;
+    return window.assistantApi.onMenuAction((action) => {
+      const c = chatRef.current;
+      switch (action) {
+        case "new-session":
+          c.createSession();
+          break;
+        case "export-transcript":
+          c.exportActiveSession("markdown");
+          break;
+        case "toggle-sidebar":
+          c.toggleSidebar();
+          break;
+      }
+    });
+  }, []);
+
   function toggleTheme() {
     const next = theme === "dark" ? "light" : "dark";
     setTheme(next);
@@ -56,7 +77,7 @@ export default function App() {
       </section>
 
       <section
-        className={`chat-layout ${chat.isCompactLayout ? "compact" : ""}`}
+        className={`chat-layout ${chat.isCompactLayout ? "compact" : ""}${!chat.isSidebarOpen && !chat.isCompactLayout ? " sidebar-collapsed" : ""}`}
         style={{ "--sidebar-width": `${chat.sidebarWidth}px` }}
       >
         {chat.isCompactLayout && chat.isSidebarOpen ? (
