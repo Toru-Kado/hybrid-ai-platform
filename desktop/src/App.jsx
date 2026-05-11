@@ -10,6 +10,7 @@ import SearchBar from "./components/SearchBar";
 import SessionSidebar from "./components/SessionSidebar";
 import useChat from "./hooks/useChat";
 import useMessageSearch from "./hooks/useMessageSearch";
+import useTextPrediction from "./hooks/useTextPrediction";
 import { getStoredTheme, getEffectiveTheme, applyTheme, storeTheme } from "./theme";
 
 export default function App() {
@@ -17,6 +18,10 @@ export default function App() {
   const search = useMessageSearch({
     messages: chat.messages,
     activeSession: chat.activeSession,
+  });
+  const prediction = useTextPrediction({
+    prompt: chat.prompt,
+    isBusy: chat.isBusy,
   });
   const [theme, setTheme] = useState(() => getEffectiveTheme(getStoredTheme()));
 
@@ -155,9 +160,11 @@ export default function App() {
             temperature={chat.temperature}
             maxTokens={chat.maxTokens}
             isBusy={chat.isBusy}
+            predictionEnabled={prediction.isEnabled}
             onSetSystemPrompt={chat.setSystemPrompt}
             onSetTemperature={chat.setTemperature}
             onSetMaxTokens={chat.setMaxTokens}
+            onSetPredictionEnabled={prediction.setIsEnabled}
           />
 
           <SearchBar
@@ -212,6 +219,10 @@ export default function App() {
             isBusy={chat.isBusy}
             onSetPrompt={chat.setPrompt}
             onSubmit={chat.submitPrompt}
+            suggestion={prediction.suggestion}
+            onAcceptFull={prediction.acceptFull}
+            onAcceptWord={prediction.acceptWord}
+            onDismiss={prediction.dismiss}
           />
         </section>
       </section>

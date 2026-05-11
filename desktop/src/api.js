@@ -152,6 +152,18 @@ const fallbackApi = {
     URL.revokeObjectURL(url);
     return { canceled: false, path: link.download };
   },
+  complete: async (payload) => {
+    const response = await fetchWithRetry("http://127.0.0.1:8765/api/complete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const body = await response.json();
+    if (!response.ok) {
+      throw new Error(body.error || "Completion request failed.");
+    }
+    return body;
+  },
   searchMessages: async (query, options = {}) => {
     const params = new URLSearchParams({ q: query });
     if (options.sessionId) params.set("session_id", String(options.sessionId));

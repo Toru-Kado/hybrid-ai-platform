@@ -121,6 +121,35 @@ class AssistantApiHandler(BaseHTTPRequestHandler):
             self._handle_chat_stream()
             return
 
+        if path == "/api/complete":
+            try:
+                payload = self._read_json_body()
+                text = _required_string(payload, "text")
+                max_tokens = _optional_positive_int(payload, "max_tokens") or 50
+            except ValueError as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+                return
+
+            if len(text.strip()) < 3:
+                self._send_json(HTTPStatus.OK, {"completion": ""})
+                return
+
+            try:
+                completion = self.state.service.complete(
+                    text=text,
+                    max_tokens=min(max_tokens, 60),
+                )
+            except AssistantClientError:
+                self._send_json(HTTPStatus.OK, {"completion": ""})
+                return
+            except Exception:
+                logger.exception("Completion request failed")
+                self._send_json(HTTPStatus.OK, {"completion": ""})
+                return
+
+            self._send_json(HTTPStatus.OK, {"completion": completion})
+            return
+
         if path != "/api/chat":
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "Not found"})
             return

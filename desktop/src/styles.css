@@ -1152,6 +1152,38 @@ textarea {
   line-height: 1.45;
 }
 
+.composer-input-wrapper {
+  position: relative;
+}
+
+.ghost-text {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 12px;
+  pointer-events: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  line-height: 1.45;
+  font-family: inherit;
+  font-size: inherit;
+  border: 1px solid transparent;
+  border-radius: 16px;
+}
+
+.ghost-text-prefix {
+  visibility: hidden;
+  white-space: pre-wrap;
+}
+
+.ghost-text-suggestion {
+  color: var(--muted);
+  opacity: 0.55;
+}
+
 input {
   height: 42px;
   padding: 0 12px;
