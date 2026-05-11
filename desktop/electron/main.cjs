@@ -133,7 +133,7 @@ async function createWindow() {
     minWidth: 920,
     minHeight: 680,
     show: false,
-    title: "Hybrid AI Platform",
+    title: "TK-AI",
     backgroundColor: "#101816",
     icon: iconPath(),
     webPreferences: {
