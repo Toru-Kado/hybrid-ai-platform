@@ -42,6 +42,16 @@ contextBridge.exposeInMainWorld("assistantApi", {
     ipcRenderer.on("menu:action", listener);
     return () => ipcRenderer.removeListener("menu:action", listener);
   },
+
+  // Auto-updater API — check, download, and install updates from GitHub Releases.
+  checkForUpdates: () => ipcRenderer.invoke("updater:checkForUpdates"),
+  downloadUpdate: () => ipcRenderer.invoke("updater:downloadUpdate"),
+  installUpdate: () => ipcRenderer.invoke("updater:installUpdate"),
+  onUpdateEvent: (callback) => {
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on("updater:event", listener);
+    return () => ipcRenderer.removeListener("updater:event", listener);
+  },
 });
 
 /**

@@ -8,6 +8,7 @@
  * only when running unpackaged to aid development.
  */
 const { Menu, shell, app } = require("electron");
+const { checkForUpdatesManually } = require("./updater.cjs");
 
 /**
  * Builds and installs the application menu for the given window.
@@ -101,6 +102,11 @@ function buildAppMenu(mainWindow) {
     {
       label: "Help",
       submenu: [
+        {
+          label: "Check for Updates...",
+          click: () => checkForUpdatesManually(mainWindow),
+        },
+        { type: "separator" },
         {
           label: "Documentation",
           click: () =>

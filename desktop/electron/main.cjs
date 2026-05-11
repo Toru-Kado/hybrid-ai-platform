@@ -8,6 +8,7 @@
  */
 const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const { buildAppMenu } = require("./menu.cjs");
+const { initAutoUpdater } = require("./updater.cjs");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -392,6 +393,7 @@ app.whenReady().then(async () => {
     await waitForBackend();
     await createWindow();
     buildAppMenu(mainWindow);
+    initAutoUpdater(mainWindow);
   } catch (error) {
     dialog.showErrorBox("TK-AI failed to start", String(error));
     app.quit();
