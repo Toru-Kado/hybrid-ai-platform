@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.13.24",
+    "electron-updater": "^6.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
@@ -49,6 +50,11 @@
       "pyproject.toml",
       "package.json"
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "Toru-Kado",
+      "repo": "hybrid-ai-platform"
+    },
     "directories": {
       "output": "release"
     },

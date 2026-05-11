@@ -4,6 +4,7 @@ import ChatHeader from "./components/ChatHeader";
 import ChatInput from "./components/ChatInput";
 import CrossSessionResults from "./components/CrossSessionResults";
 import ErrorBanner from "./components/ErrorBanner";
+import UpdateBanner from "./components/UpdateBanner";
 import MessageThread from "./components/MessageThread";
 import PreferencesPanel from "./components/PreferencesPanel";
 import SearchBar from "./components/SearchBar";
@@ -151,6 +152,7 @@ export default function App() {
               onDismiss={() => chat.setErrorState(null)}
             />
           ) : null}
+          <UpdateBanner />
           {chat.notice ? <div className="notice" role="status" aria-live="polite">{chat.notice}</div> : null}
 
           <PreferencesPanel
