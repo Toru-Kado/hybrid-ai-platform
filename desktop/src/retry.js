@@ -1,3 +1,17 @@
+/**
+ * @file Retry and resilience utilities for HTTP requests.
+ *
+ * Provides exponential-backoff retry logic for both standard fetch calls and
+ * streaming connections. Transient errors (5xx, 408, 429) and network failures
+ * are retried automatically; non-retriable errors propagate immediately.
+ */
+
+/**
+ * Determines whether an HTTP response status indicates a transient/retriable error.
+ * Covers timeout (408), rate-limit (429), and server errors (5xx).
+ * @param {Response} response - The fetch Response object.
+ * @returns {boolean} true if the error is likely transient and worth retrying.
+ */
 export function isTransientError(response) {
   if (!response || typeof response.status !== "number") {
     return false;
@@ -8,6 +22,12 @@ export function isTransientError(response) {
   return response.status >= 500;
 }
 
+/**
+ * Checks whether an error represents a network-level failure (connection
+ * refused, timeout, offline, etc.) as opposed to an application-level error.
+ * @param {Error} error - The caught error.
+ * @returns {boolean} true if the error appears to be network-related.
+ */
 export function isNetworkError(error) {
   if (!error) {
     return false;
@@ -23,12 +43,25 @@ export function isNetworkError(error) {
   );
 }
 
+/**
+ * Computes the delay before the next retry using exponential backoff with jitter.
+ * @param {number} attempt - Zero-based attempt index (0 = first retry).
+ * @returns {number} Delay in milliseconds.
+ */
 export function computeDelay(attempt) {
   const base = 1000 * Math.pow(2, attempt);
   const jitter = Math.random() * 500;
   return base + jitter;
 }
 
+/**
+ * Wraps the Fetch API with automatic retry on transient/network errors.
+ * Returns the Response on success (even non-2xx that is not transient).
+ * @param {string} url - Request URL.
+ * @param {RequestInit} [options] - Standard fetch options.
+ * @param {{ maxRetries?: number }} [retryOptions] - Retry configuration (default 3).
+ * @returns {Promise<Response>} The final fetch Response.
+ */
 export async function fetchWithRetry(url, options = {}, retryOptions = {}) {
   const maxRetries = retryOptions.maxRetries ?? 3;
 
@@ -53,6 +86,16 @@ export async function fetchWithRetry(url, options = {}, retryOptions = {}) {
   throw lastError;
 }
 
+/**
+ * Initiates a streaming POST request with retry on transient/network errors.
+ * On non-retriable failure, attaches `_streamPartial = true` to the error so
+ * callers can distinguish mid-stream failures from pre-connection errors.
+ * @param {string} url - Streaming endpoint URL.
+ * @param {object} payload - JSON body to POST.
+ * @param {object} [handlers] - Event handlers (unused here; passed through by callers).
+ * @param {{ maxRetries?: number }} [options] - Retry configuration (default 2).
+ * @returns {Promise<Response>} The successful Response ready for stream reading.
+ */
 export async function streamWithResilience(url, payload, handlers = {}, options = {}) {
   const maxRetries = options.maxRetries ?? 2;
   let attempt = 0;

@@ -1,3 +1,27 @@
+"""HTTP API server for the hybrid AI desktop application.
+
+This module implements a threaded HTTP server that exposes a REST + SSE API
+consumed by the Electron/React frontend. It provides session management,
+chat (both request-response and streaming via Server-Sent Events), message
+search, and inline text completion endpoints.
+
+The Electron main process spawns this server as a subprocess; the frontend
+communicates over localhost HTTP. CORS headers are added to allow the Vite
+dev server origin during development.
+
+Endpoints:
+    GET  /api/health          - Health check with provider info
+    GET  /api/sessions        - List all sessions
+    GET  /api/sessions/{id}   - Get session with messages
+    POST /api/sessions        - Create new session
+    PATCH /api/sessions/{id}  - Rename session
+    DELETE /api/sessions/{id} - Delete session
+    POST /api/chat            - Send message (JSON response)
+    POST /api/chat/stream     - Send message (SSE stream)
+    POST /api/complete        - Inline text completion
+    GET  /api/search          - Full-text search across messages
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -19,11 +43,19 @@ from app.services.chat import ChatService
 
 logger = logging.getLogger(__name__)
 
+# Reject request bodies larger than 128 KiB to prevent memory abuse.
 MAX_REQUEST_BYTES = 128 * 1024
 
 
 @dataclass(slots=True)
 class ServerState:
+    """Shared state accessible to all request handlers.
+
+    Holds the application settings, chat service, guardrail configuration,
+    and session store. Attached to the server instance so each handler
+    thread can access it without globals.
+    """
+
     settings: Settings
     service: ChatService
     default_guardrails: GuardrailSettings | None
@@ -31,12 +63,21 @@ class ServerState:
 
 
 class AssistantApiHandler(BaseHTTPRequestHandler):
+    """HTTP request handler implementing the assistant REST/SSE API.
+
+    Dispatches requests to the appropriate session, chat, or search logic.
+    Each instance handles a single request on a thread managed by
+    ThreadingHTTPServer.
+    """
+
     server_version = "HybridAssistantApi/0.1"
 
     def do_OPTIONS(self) -> None:
+        """Handle CORS preflight requests."""
         self._send_empty(HTTPStatus.NO_CONTENT)
 
     def do_GET(self) -> None:
+        """Route GET requests to health, sessions, or search endpoints."""
         path = self._request_path()
         if path == "/api/health":
             self._send_json(
@@ -104,6 +145,7 @@ class AssistantApiHandler(BaseHTTPRequestHandler):
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "Not found"})
 
     def do_POST(self) -> None:
+        """Route POST requests to session creation, chat, or completion endpoints."""
         path = self._request_path()
         if path == "/api/sessions":
             try:
@@ -236,6 +278,11 @@ class AssistantApiHandler(BaseHTTPRequestHandler):
         )
 
     def _handle_chat_stream(self) -> None:
+        """Process a streaming chat request, emitting SSE events as tokens arrive.
+
+        Sends session/user_message events first, then delta events for each token,
+        and finally a complete event with the full response metadata.
+        """
         try:
             payload = self._read_json_body()
             prompt = _required_string(payload, "prompt")
@@ -327,6 +374,7 @@ class AssistantApiHandler(BaseHTTPRequestHandler):
         )
 
     def do_PATCH(self) -> None:
+        """Handle session title updates."""
         path = self._request_path()
         if not path.startswith("/api/sessions/"):
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "Not found"})
@@ -348,6 +396,7 @@ class AssistantApiHandler(BaseHTTPRequestHandler):
         self._send_json(HTTPStatus.OK, {"session": session.to_dict()})
 
     def do_DELETE(self) -> None:
+        """Handle session deletion."""
         path = self._request_path()
         if not path.startswith("/api/sessions/"):
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "Not found"})
@@ -454,6 +503,7 @@ class AssistantApiHandler(BaseHTTPRequestHandler):
         temperature: float | None,
         guardrail_settings: GuardrailSettings | None,
     ):
+        """Consume the chat stream, forwarding text deltas as SSE and returning the final result."""
         result = None
         for event in self.state.service.stream_chat(
             prompt=prompt,
@@ -475,6 +525,8 @@ class AssistantApiHandler(BaseHTTPRequestHandler):
 
 
 class AssistantApiServer(ThreadingHTTPServer):
+    """Threaded HTTP server that holds shared ServerState for all request handlers."""
+
     state: ServerState
 
 
@@ -486,6 +538,11 @@ def create_server(
     db_path: str,
     guardrails: str | None = None,
 ) -> AssistantApiServer:
+    """Construct and configure the API server with all dependencies.
+
+    Loads settings from the env file, creates the AI client and chat service,
+    initializes the SQLite session store, and returns a ready-to-serve instance.
+    """
     settings = Settings.from_env(env_file)
     configure_logging(
         level=settings.log_level,
@@ -512,6 +569,7 @@ def run_server(
     db_path: str,
     guardrails: str | None = None,
 ) -> None:
+    """Create and start the API server, blocking until shutdown."""
     server = create_server(
         host=host,
         port=port,
@@ -558,6 +616,7 @@ def main() -> int:
 
 
 def _required_string(payload: dict[str, Any], key: str) -> str:
+    """Extract a required non-empty string from a JSON payload."""
     value = payload.get(key)
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{key} is required.")
