@@ -192,7 +192,7 @@ async function createWindow() {
 
   mainWindow.once("ready-to-show", () => mainWindow.show());
 
-  if (app.isPackaged) {
+  if (app.isPackaged || process.env.NODE_ENV === "test") {
     await mainWindow.loadFile(path.join(projectRoot(), "desktop", "dist", "index.html"));
   } else {
     await mainWindow.loadURL("http://127.0.0.1:5173");
@@ -386,11 +386,14 @@ ipcMain.handle("assistant:ssoLogin", async (_event, profileName) => {
 // ---------------------------------------------------------------------------
 
 // Startup sequence: icon -> backend subprocess -> wait for health -> open window.
+// When HYBRID_AI_SKIP_BACKEND=1, assume the backend is managed externally (e.g. tests).
 app.whenReady().then(async () => {
   try {
     applyApplicationIcon();
-    startBackend();
-    await waitForBackend();
+    if (!process.env.HYBRID_AI_SKIP_BACKEND) {
+      startBackend();
+      await waitForBackend();
+    }
     await createWindow();
     buildAppMenu(mainWindow);
     initAutoUpdater(mainWindow);

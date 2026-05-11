@@ -21,12 +21,20 @@ test.describe("Electron app launch", () => {
       env: {
         ...process.env,
         NODE_ENV: "test",
-        HYBRID_AI_API_PORT: "0", // Let the server pick a free port
+        HYBRID_AI_API_PORT: "8766",
+        HYBRID_AI_SKIP_BACKEND: "1",
+        ELECTRON_ENABLE_LOGGING: "1",
       },
+    });
+
+    // Capture console for debugging
+    electronApp.on("close", () => {
+      console.log("[electron] app closed");
     });
 
     window = await electronApp.firstWindow();
     // Wait for the app to fully render
+    await window.waitForLoadState("domcontentloaded");
     await window.waitForSelector(".chat-layout", { timeout: 30000 });
   });
 
