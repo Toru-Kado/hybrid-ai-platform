@@ -27,6 +27,8 @@ make test               # Python unittest (tests/)
 make verify             # compile + test
 npm run desktop:test    # Vitest for React components
 make infra-test         # pytest for CDK stack tests
+make test-e2e           # Playwright integration tests (Chromium + real Python API)
+make test-e2e-electron  # Playwright Electron E2E tests
 
 # Smoke tests
 make smoke              # Local: verify + infra-test + cdk-synth
