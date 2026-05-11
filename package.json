@@ -38,7 +38,7 @@
   },
   "build": {
     "appId": "com.torukado.hybridai",
-    "productName": "Hybrid AI Platform",
+    "productName": "TK-AI",
     "asar": false,
     "files": [
       "app/**/*",
