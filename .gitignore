@@ -19,6 +19,9 @@ build/
 release/
 *.egg-info/
 
+# Code signing certificates
+certificates/
+
 infra/.venv/
 
 e2e/test-results/

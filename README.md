@@ -1,13 +1,37 @@
-# TK-AI
+# TK-AI v1.1.0
+
+> **[📥 Download v1.1.0](https://github.com/Toru-Kado/hybrid-ai-platform/releases/tag/v1.1.0)** | **[📖 Release Notes](./RELEASE_NOTES_v1.1.0.md)**
 
 Hybrid AI starter for:
 
 - local Python-based assistant workflows
 - Amazon Bedrock as the primary model runtime
-- AWS CDK as the infrastructure baseline
+- AWS CDK with multi-environment support (dev/staging/prod)
+- Freemium monetization with referral bonuses
 - the Toru Kado AWS organization segment
 
 This repo has been reset away from Terraform. The IaC source of truth is now the CDK app under [infra](/Users/nathanmalitz/Code/hybrid-ai-platform/infra), and deploys should target the same AWS org/account path already being used in `fooocus-rig`.
+
+## ✨ v1.1.0 Highlights
+
+### 🏗️ **Multi-Environment Infrastructure**
+- Deploy to dev, staging, or production with environment-specific configurations
+- Production-safe defaults (90-day logs, no accidental resource deletion)
+- Cross-account AWS deployment support
+
+### 💰 **Freemium Monetization**
+- **Free tier**: 50 conversations/month, local storage
+- **Pro tier**: $10/month, unlimited conversations, 5GB cloud sync
+- **Enterprise tier**: $49/month, unlimited everything, team features
+- **Referral bonuses**: Share with friends, earn free months
+
+### 🎯 **Modular Billing System**
+- Feature gating by tier
+- Real-time usage tracking
+- Referral code generation and management
+- New API endpoints for monetization
+
+See [Release Notes](./RELEASE_NOTES_v1.1.0.md) for complete details.
 
 ## What This Repo Contains
 
@@ -48,7 +72,16 @@ aws sts get-caller-identity --profile TK-Admin
 
 Use the profile that resolves to the same AWS organization segment and account path you are already using for `fooocus-rig`. Do not assume an old `hybrid-ai-dev` account or role still applies.
 
-## Local App Setup
+## 📥 Quick Start - Download the App
+
+**macOS users**: [Download TK-AI v1.1.0](https://github.com/Toru-Kado/hybrid-ai-platform/releases/tag/v1.1.0)
+- DMG installer (124 MB) or ZIP archive (119 MB)
+- Extract and run
+- Python server starts automatically
+
+**Windows/Linux**: Coming soon in v1.1.1
+
+## 🛠️ Development Setup
 
 Create the app environment and install the Python package:
 
