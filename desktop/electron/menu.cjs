@@ -1,9 +1,23 @@
+/**
+ * Application Menu Bar Builder
+ *
+ * Constructs the native menu bar with platform-appropriate structure.
+ * Custom menu items (New Session, Export, Toggle Sidebar) dispatch actions
+ * to the renderer via IPC so the React UI can respond without direct coupling
+ * to Electron's menu system. Dev-only items (DevTools, Reload) are included
+ * only when running unpackaged to aid development.
+ */
 const { Menu, shell, app } = require("electron");
 
+/**
+ * Builds and installs the application menu for the given window.
+ * Must be called after the BrowserWindow is created so webContents is available.
+ */
 function buildAppMenu(mainWindow) {
   const isMac = process.platform === "darwin";
   const isDev = !app.isPackaged;
 
+  /** Sends a named action string to the renderer process for handling. */
   function sendMenuAction(action) {
     mainWindow.webContents.send("menu:action", action);
   }

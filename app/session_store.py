@@ -1,3 +1,15 @@
+"""SQLite-backed session and message persistence layer.
+
+This module provides the SessionStore class which manages chat sessions and
+their messages in a local SQLite database. It supports schema versioning with
+forward migrations, full-text search (FTS5) over message content, and
+auto-generated session titles from prompt text.
+
+The database is the single source of truth for conversation history in the
+desktop application. The Electron frontend reads and writes through the
+HTTP API layer, which delegates to SessionStore.
+"""
+
 from __future__ import annotations
 
 import json
@@ -8,14 +20,17 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+# Incremented each time a new migration is added. Migrations run forward-only.
 SCHEMA_VERSION = 2
 
 
 def _utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(UTC).isoformat()
 
 
 def _default_title(prompt: str) -> str:
+    """Derive a session title from the first user prompt, truncated to 72 chars."""
     compact = " ".join(prompt.strip().split())
     if not compact:
         return "New session"
@@ -24,6 +39,8 @@ def _default_title(prompt: str) -> str:
 
 @dataclass(slots=True)
 class SearchResult:
+    """A single full-text search hit with contextual snippet and session metadata."""
+
     message_id: int
     session_id: int
     role: str
@@ -46,6 +63,8 @@ class SearchResult:
 
 @dataclass(slots=True)
 class SessionSummary:
+    """Lightweight session record used in list views, including message count and last-message preview."""
+
     session_id: int
     title: str
     created_at: str
@@ -66,6 +85,8 @@ class SessionSummary:
 
 @dataclass(slots=True)
 class SessionMessage:
+    """A single message within a session, with optional provider-returned metadata."""
+
     message_id: int
     session_id: int
     role: str
@@ -85,12 +106,21 @@ class SessionMessage:
 
 
 class SessionStore:
+    """SQLite-backed store for chat sessions and messages.
+
+    Manages the full lifecycle of sessions (create, read, update, delete) and
+    their associated messages. Uses schema versioning via SQLite PRAGMA
+    user_version and applies forward migrations on initialization. Also
+    provides full-text search over message content using FTS5.
+    """
+
     def __init__(self, db_path: str | Path) -> None:
         self._db_path = Path(db_path)
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._initialize()
 
     def list_sessions(self) -> list[SessionSummary]:
+        """Return all sessions ordered by most recently updated, with message counts."""
         with closing(self._connect()) as connection:
             rows = connection.execute(
                 """
@@ -117,6 +147,7 @@ class SessionStore:
         return [self._summary_from_row(row) for row in rows]
 
     def create_session(self, title: str | None = None) -> SessionSummary:
+        """Create a new empty session with the given title (defaults to 'New session')."""
         created_at = _utc_now()
         clean_title = (title or "").strip() or "New session"
         with closing(self._connect()) as connection:
