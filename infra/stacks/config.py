@@ -2,6 +2,26 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from enum import Enum
+
+
+class EnvironmentType(Enum):
+    """Supported deployment environments."""
+
+    DEV = "dev"
+    STAGING = "staging"
+    PROD = "prod"
+
+    @classmethod
+    def from_string(cls, value: str) -> "EnvironmentType":
+        normalized = value.lower().strip()
+        try:
+            return cls(normalized)
+        except ValueError as exc:
+            valid = ", ".join(e.value for e in cls)
+            raise ValueError(
+                f"ENVIRONMENT_TYPE must be one of: {valid}"
+            ) from exc
 
 
 def _csv_env(name: str) -> list[str]:
@@ -35,10 +55,33 @@ def _int_env(name: str, default: int) -> int:
         raise ValueError(f"{name} must be an integer") from exc
 
 
+def _environment_presets(env_type: EnvironmentType) -> dict:
+    """Return sensible defaults for an environment type."""
+    presets = {
+        EnvironmentType.DEV: {
+            "assets_bucket_force_destroy": True,
+            "log_retention_days": 7,
+            "operator_role_enable_observability_access": True,
+        },
+        EnvironmentType.STAGING: {
+            "assets_bucket_force_destroy": False,
+            "log_retention_days": 30,
+            "operator_role_enable_observability_access": True,
+        },
+        EnvironmentType.PROD: {
+            "assets_bucket_force_destroy": False,
+            "log_retention_days": 90,
+            "operator_role_enable_observability_access": False,
+        },
+    }
+    return presets.get(env_type, {})
+
+
 @dataclass(frozen=True, slots=True)
 class PlatformConfig:
     project_name: str = "hybrid-ai-platform"
     environment_name: str = "dev"
+    environment_type: EnvironmentType = EnvironmentType.DEV
     company_name: str = "Toru Kado"
     organization_segment: str = "toru-kado"
     assets_bucket_name_override: str | None = None
@@ -54,10 +97,23 @@ class PlatformConfig:
 
     @classmethod
     def from_env(cls) -> "PlatformConfig":
+        env_type_str = os.getenv("ENVIRONMENT_TYPE", "dev").strip().lower()
+        try:
+            env_type = EnvironmentType.from_string(env_type_str)
+        except ValueError as exc:
+            raise ValueError(f"Invalid ENVIRONMENT_TYPE: {env_type_str}") from exc
+
+        presets = _environment_presets(env_type)
+        environment_name = (
+            os.getenv("ENVIRONMENT_NAME", "").strip()
+            or env_type.value
+        )
+
         return cls(
             project_name=os.getenv("PROJECT_NAME", "hybrid-ai-platform").strip()
             or "hybrid-ai-platform",
-            environment_name=os.getenv("ENVIRONMENT_NAME", "dev").strip() or "dev",
+            environment_name=environment_name,
+            environment_type=env_type,
             company_name=os.getenv("COMPANY_NAME", "Toru Kado").strip()
             or "Toru Kado",
             organization_segment=os.getenv(
@@ -70,9 +126,12 @@ class PlatformConfig:
             ),
             assets_bucket_force_destroy=_bool_env(
                 "ASSETS_BUCKET_FORCE_DESTROY",
-                False,
+                presets.get("assets_bucket_force_destroy", False),
             ),
-            log_retention_days=_int_env("LOG_RETENTION_DAYS", 14),
+            log_retention_days=_int_env(
+                "LOG_RETENTION_DAYS",
+                presets.get("log_retention_days", 14),
+            ),
             bedrock_foundation_model_ids=_csv_env("BEDROCK_FOUNDATION_MODEL_IDS"),
             bedrock_inference_profile_arns=_csv_env(
                 "BEDROCK_INFERENCE_PROFILE_ARNS"
@@ -87,6 +146,6 @@ class PlatformConfig:
             ),
             operator_role_enable_observability_access=_bool_env(
                 "OPERATOR_ROLE_ENABLE_OBSERVABILITY_ACCESS",
-                True,
+                presets.get("operator_role_enable_observability_access", True),
             ),
         )
