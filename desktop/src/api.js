@@ -1,6 +1,9 @@
 import { fetchWithRetry } from "./retry";
 import { transcriptFormatConfig } from "./transcript";
 
+const API_PORT = import.meta.env.VITE_API_PORT || 8765;
+const API_BASE = `http://127.0.0.1:${API_PORT}`;
+
 function parseSseChunk(chunk) {
   const lines = chunk.split("\n");
   let type = "message";
@@ -92,15 +95,15 @@ export async function streamChatOverHttp(url, payload, handlers = {}) {
 
 const fallbackApi = {
   health: async () => {
-    const response = await fetchWithRetry("http://127.0.0.1:8765/api/health");
+    const response = await fetchWithRetry(`${API_BASE}/api/health`);
     return response.json();
   },
   listSessions: async () => {
-    const response = await fetchWithRetry("http://127.0.0.1:8765/api/sessions");
+    const response = await fetchWithRetry(`${API_BASE}/api/sessions`);
     return response.json();
   },
   createSession: async (payload) => {
-    const response = await fetchWithRetry("http://127.0.0.1:8765/api/sessions", {
+    const response = await fetchWithRetry(`${API_BASE}/api/sessions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload || {}),
@@ -108,7 +111,7 @@ const fallbackApi = {
     return response.json();
   },
   getSession: async (sessionId) => {
-    const response = await fetchWithRetry(`http://127.0.0.1:8765/api/sessions/${sessionId}`);
+    const response = await fetchWithRetry(`${API_BASE}/api/sessions/${sessionId}`);
     const body = await response.json();
     if (!response.ok) {
       throw new Error(body.error || "Failed to load session.");
@@ -116,7 +119,7 @@ const fallbackApi = {
     return body;
   },
   renameSession: async (sessionId, payload) => {
-    const response = await fetchWithRetry(`http://127.0.0.1:8765/api/sessions/${sessionId}`, {
+    const response = await fetchWithRetry(`${API_BASE}/api/sessions/${sessionId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -128,7 +131,7 @@ const fallbackApi = {
     return body;
   },
   deleteSession: async (sessionId) => {
-    const response = await fetchWithRetry(`http://127.0.0.1:8765/api/sessions/${sessionId}`, {
+    const response = await fetchWithRetry(`${API_BASE}/api/sessions/${sessionId}`, {
       method: "DELETE",
     });
     if (!response.ok) {
@@ -153,7 +156,7 @@ const fallbackApi = {
     return { canceled: false, path: link.download };
   },
   complete: async (payload) => {
-    const response = await fetchWithRetry("http://127.0.0.1:8765/api/complete", {
+    const response = await fetchWithRetry(`${API_BASE}/api/complete`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -170,7 +173,7 @@ const fallbackApi = {
     if (options.limit) params.set("limit", String(options.limit));
     if (options.offset) params.set("offset", String(options.offset));
     const response = await fetchWithRetry(
-      `http://127.0.0.1:8765/api/search?${params}`
+      `${API_BASE}/api/search?${params}`
     );
     const body = await response.json();
     if (!response.ok) {
@@ -179,7 +182,7 @@ const fallbackApi = {
     return body;
   },
   streamChat: async (payload, handlers) => {
-    return streamChatOverHttp("http://127.0.0.1:8765/api/chat/stream", payload, handlers);
+    return streamChatOverHttp(`${API_BASE}/api/chat/stream`, payload, handlers);
   },
 };
 
