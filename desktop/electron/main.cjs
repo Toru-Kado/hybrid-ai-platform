@@ -328,7 +328,7 @@ app.whenReady().then(async () => {
     await createWindow();
     buildAppMenu(mainWindow);
   } catch (error) {
-    dialog.showErrorBox("Hybrid AI Platform failed to start", String(error));
+    dialog.showErrorBox("TK-AI failed to start", String(error));
     app.quit();
   }
 });

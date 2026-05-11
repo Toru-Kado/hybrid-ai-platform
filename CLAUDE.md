@@ -1,4 +1,4 @@
-# Hybrid AI Platform
+# TK-AI
 
 ## Project overview
 
