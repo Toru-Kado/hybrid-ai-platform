@@ -5,7 +5,6 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { resolveDesktopDbPath } = require("./db-path.cjs");
 const { getSavedWindowBounds, saveWindowBounds } = require("./preferences.cjs");
-const { buildAppMenu } = require("./menu.cjs");
 
 const API_HOST = "127.0.0.1";
 const API_PORT = Number(process.env.HYBRID_AI_API_PORT || 8765);
