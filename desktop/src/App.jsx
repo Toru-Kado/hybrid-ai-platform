@@ -63,7 +63,7 @@ export default function App() {
       <section className="hero">
         <div>
           <p className="eyebrow">Toru Kado Desktop POC</p>
-          <h1>Hybrid AI Platform</h1>
+          <h1>TK-AI</h1>
           <p className="lede">
             A local desktop client for Anthropic Claude through Amazon Bedrock,
             with SQLite-backed session history and markdown-rendered responses.
@@ -71,7 +71,7 @@ export default function App() {
         </div>
         <div className="hero-brandmark">
           <div className="hero-icon-frame">
-            <img className="hero-icon" src={appIcon} alt="Hybrid AI Platform icon" />
+            <img className="hero-icon" src={appIcon} alt="TK-AI icon" />
           </div>
         </div>
       </section>

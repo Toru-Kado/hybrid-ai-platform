@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "private": true,
   "author": "Toru Kado",
-  "description": "Cross-platform desktop shell for the Hybrid AI Platform assistant.",
+  "description": "Cross-platform desktop shell for the TK-AI assistant.",
   "main": "desktop/electron/main.cjs",
   "scripts": {
     "desktop:dev": "concurrently -k \"npm:desktop:dev:vite\" \"wait-on tcp:5173 && electron .\"",

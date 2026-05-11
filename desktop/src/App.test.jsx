@@ -205,7 +205,7 @@ describe("App layout behavior", () => {
   it("shows the app icon in the header chrome", async () => {
     await renderApp(1440);
 
-    expect(screen.getByAltText("Hybrid AI Platform icon")).toBeInTheDocument();
+    expect(screen.getByAltText("TK-AI icon")).toBeInTheDocument();
   });
 
   it("hydrates saved conversation history for the selected session", async () => {
