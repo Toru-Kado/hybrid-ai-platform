@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from typing import Any, Iterator, Sequence
 
 from app.clients.base import (
@@ -16,31 +17,77 @@ logger = logging.getLogger(__name__)
 BedrockClientError = AssistantClientError
 BedrockResponse = AssistantResponse
 
+_CREDENTIAL_ERROR_CODES = frozenset({
+    "ExpiredToken",
+    "ExpiredTokenException",
+    "UnauthorizedSSOTokenError",
+    "InvalidClientTokenId",
+    "UnrecognizedClientException",
+    "NoCredentialsError",
+    "TokenRetrievalError",
+    "SSOTokenLoadError",
+})
+
+_CREDENTIAL_ERROR_PATTERNS = (
+    "security token included in the request is expired",
+    "the sso session associated with this profile",
+    "sso token",
+    "token has expired",
+    "unable to locate credentials",
+)
+
+
+def _is_credential_error(exc: BaseException) -> bool:
+    error_code = exc.__class__.__name__
+    if error_code in _CREDENTIAL_ERROR_CODES:
+        return True
+
+    response = getattr(exc, "response", None)
+    if isinstance(response, dict):
+        code = response.get("Error", {}).get("Code", "")
+        if code in _CREDENTIAL_ERROR_CODES:
+            return True
+
+    message = str(exc).lower()
+    return any(pattern in message for pattern in _CREDENTIAL_ERROR_PATTERNS)
+
 
 class BedrockRuntimeClient:
     def __init__(self, settings: Settings) -> None:
         boto3, botocore_config, handled_exceptions = _load_bedrock_dependencies()
 
+        self._boto3 = boto3
+        self._botocore_config = botocore_config
+        self._settings = settings
+        self._handled_exceptions = handled_exceptions
+        self._client_lock = threading.Lock()
+
         session_kwargs: dict[str, Any] = {"region_name": settings.aws_region}
         if settings.aws_profile:
             session_kwargs["profile_name"] = settings.aws_profile
+        self._session_kwargs = session_kwargs
 
         try:
-            session = boto3.Session(**session_kwargs)
-            self._client = session.client(
-                "bedrock-runtime",
-                region_name=settings.aws_region,
-                config=botocore_config.Config(
-                    retries={"max_attempts": 3, "mode": "standard"},
-                    connect_timeout=10,
-                    read_timeout=120,
-                ),
-            )
+            self._client = self._create_boto_client()
         except handled_exceptions as exc:
             raise _normalize_bedrock_error(exc) from exc
 
-        self._settings = settings
-        self._handled_exceptions = handled_exceptions
+    def _create_boto_client(self) -> Any:
+        session = self._boto3.Session(**self._session_kwargs)
+        return session.client(
+            "bedrock-runtime",
+            region_name=self._settings.aws_region,
+            config=self._botocore_config.Config(
+                retries={"max_attempts": 3, "mode": "standard"},
+                connect_timeout=10,
+                read_timeout=120,
+            ),
+        )
+
+    def _recreate_client(self) -> None:
+        with self._client_lock:
+            logger.info("Recreating boto3 session to refresh AWS credentials")
+            self._client = self._create_boto_client()
 
     @property
     def target_identifier(self) -> str:
@@ -102,11 +149,26 @@ class BedrockRuntimeClient:
         try:
             response = self._client.converse(**payload)
         except self._handled_exceptions as exc:
-            raise _normalize_bedrock_error(
-                exc,
-                target_identifier=self.target_identifier,
-                target_kind=self.target_kind,
-            ) from exc
+            if _is_credential_error(exc):
+                logger.warning(
+                    "Credential error detected, recreating client and retrying",
+                    exc_info=True,
+                )
+                self._recreate_client()
+                try:
+                    response = self._client.converse(**payload)
+                except self._handled_exceptions as retry_exc:
+                    raise _normalize_bedrock_error(
+                        retry_exc,
+                        target_identifier=self.target_identifier,
+                        target_kind=self.target_kind,
+                    ) from retry_exc
+            else:
+                raise _normalize_bedrock_error(
+                    exc,
+                    target_identifier=self.target_identifier,
+                    target_kind=self.target_kind,
+                ) from exc
 
         output_message = response.get("output", {}).get("message", {})
         content_blocks = output_message.get("content", [])
@@ -171,11 +233,26 @@ class BedrockRuntimeClient:
         try:
             response = self._client.converse_stream(**payload)
         except self._handled_exceptions as exc:
-            raise _normalize_bedrock_error(
-                exc,
-                target_identifier=self.target_identifier,
-                target_kind=self.target_kind,
-            ) from exc
+            if _is_credential_error(exc):
+                logger.warning(
+                    "Credential error detected, recreating client and retrying",
+                    exc_info=True,
+                )
+                self._recreate_client()
+                try:
+                    response = self._client.converse_stream(**payload)
+                except self._handled_exceptions as retry_exc:
+                    raise _normalize_bedrock_error(
+                        retry_exc,
+                        target_identifier=self.target_identifier,
+                        target_kind=self.target_kind,
+                    ) from retry_exc
+            else:
+                raise _normalize_bedrock_error(
+                    exc,
+                    target_identifier=self.target_identifier,
+                    target_kind=self.target_kind,
+                ) from exc
 
         request_id = response.get("ResponseMetadata", {}).get("RequestId")
         yield from _iter_converse_stream_events(

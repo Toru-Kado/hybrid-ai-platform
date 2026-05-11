@@ -1,9 +1,10 @@
 {
   "name": "hybrid-ai-platform-desktop",
-  "version": "0.1.0",
+  "productName": "TK-AI",
+  "version": "1.0.0",
   "private": true,
   "author": "Toru Kado",
-  "description": "Cross-platform desktop shell for the Hybrid AI Platform assistant.",
+  "description": "Cross-platform desktop shell for the TK-AI assistant.",
   "main": "desktop/electron/main.cjs",
   "scripts": {
     "desktop:dev": "concurrently -k \"npm:desktop:dev:vite\" \"wait-on tcp:5173 && electron .\"",
@@ -16,12 +17,15 @@
     "desktop:dist": "npm run desktop:build && electron-builder"
   },
   "dependencies": {
+    "@tanstack/react-virtual": "^3.13.24",
+    "electron-updater": "^6.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
@@ -36,7 +40,7 @@
   },
   "build": {
     "appId": "com.torukado.hybridai",
-    "productName": "Hybrid AI Platform",
+    "productName": "TK-AI",
     "asar": false,
     "files": [
       "app/**/*",
@@ -46,6 +50,11 @@
       "pyproject.toml",
       "package.json"
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "Toru-Kado",
+      "repo": "hybrid-ai-platform"
+    },
     "directories": {
       "output": "release"
     },

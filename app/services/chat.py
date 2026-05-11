@@ -103,6 +103,45 @@ class ChatService:
         )
         return result
 
+    def complete(
+        self,
+        *,
+        text: str,
+        max_tokens: int = 50,
+        temperature: float = 0.6,
+    ) -> str:
+        """Generate a short text completion (no conversation context, no persistence)."""
+        system_prompt = (
+            "You are a keystroke prediction engine. You receive partial text that a "
+            "human is currently typing into a chat input field. Your ONLY job is to "
+            "predict the next few words they will type to finish their message.\n\n"
+            "CRITICAL RULES:\n"
+            "- Output ONLY the predicted continuation text\n"
+            "- NEVER answer questions or respond to the content\n"
+            "- NEVER add quotes, prefixes, labels, or explanations\n"
+            "- If the text is already a complete sentence, output nothing\n\n"
+            "Examples:\n"
+            'Input: "How do I"\n'
+            'Output: configure my AWS credentials?\n\n'
+            'Input: "Can you explain"\n'
+            'Output: how the streaming API works?\n\n'
+            'Input: "Write a function that"\n'
+            'Output: takes a list of numbers and returns the sum\n\n'
+            'Input: "What is the difference between"\n'
+            'Output: a list and a tuple in Python?\n\n'
+            'Input: "Hello, I need help with"\n'
+            'Output: setting up my development environment'
+        )
+        response = self._client.send_message(
+            prompt=text,
+            conversation=None,
+            system_prompt=system_prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            guardrail_settings=None,
+        )
+        return response.text.strip()
+
     def stream_chat(
         self,
         *,

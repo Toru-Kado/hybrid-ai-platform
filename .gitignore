@@ -1,5 +1,6 @@
 .DS_Store
 .env
+
 .venv/
 __pycache__/
 *.pyc
@@ -19,4 +20,6 @@ release/
 *.egg-info/
 
 infra/.venv/
-node_modules
+
+e2e/test-results/
+e2e/playwright-report/

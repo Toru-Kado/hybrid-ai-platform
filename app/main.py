@@ -1,3 +1,15 @@
+"""CLI entry point for the hybrid AI assistant.
+
+This module provides a one-shot command-line interface for sending a single
+prompt to the configured AI provider (Bedrock or Anthropic) and printing
+the response. It handles argument parsing, environment-driven configuration,
+structured logging setup, and error reporting.
+
+Typical usage:
+    python -m app.main --prompt "Explain quantum computing"
+    echo "Summarize this" | python -m app.main
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -12,6 +24,7 @@ from app.services.chat import ChatService
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments for the CLI assistant."""
     parser = argparse.ArgumentParser(
         description="CLI assistant for invoking Anthropic Claude through Amazon Bedrock."
     )
@@ -55,6 +68,10 @@ def parse_args() -> argparse.Namespace:
 
 
 def resolve_prompt(args: argparse.Namespace) -> str:
+    """Determine the user prompt from --prompt flag or piped stdin.
+
+    Raises SystemExit if no prompt text is available from either source.
+    """
     if args.prompt:
         prompt = args.prompt.strip()
         if prompt:
@@ -69,6 +86,7 @@ def resolve_prompt(args: argparse.Namespace) -> str:
 
 
 def validate_args(args: argparse.Namespace) -> None:
+    """Validate numeric argument constraints, raising SystemExit on violations."""
     if args.max_tokens is not None and args.max_tokens <= 0:
         raise SystemExit("--max-tokens must be greater than zero.")
 
@@ -77,6 +95,10 @@ def validate_args(args: argparse.Namespace) -> None:
 
 
 def main() -> int:
+    """Run a single prompt through the AI provider and print the result.
+
+    Returns 0 on success, 1 on provider error, or 2 on configuration error.
+    """
     args = parse_args()
     validate_args(args)
 

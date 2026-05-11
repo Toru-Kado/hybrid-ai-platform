@@ -1,4 +1,4 @@
-# Hybrid AI Platform
+# TK-AI
 
 ## Project overview
 
@@ -27,6 +27,8 @@ make test               # Python unittest (tests/)
 make verify             # compile + test
 npm run desktop:test    # Vitest for React components
 make infra-test         # pytest for CDK stack tests
+make test-e2e           # Playwright integration tests (Chromium + real Python API)
+make test-e2e-electron  # Playwright Electron E2E tests
 
 # Smoke tests
 make smoke              # Local: verify + infra-test + cdk-synth
@@ -66,7 +68,8 @@ desktop/
     db-path.cjs         # Database path resolution
     preload.cjs         # IPC bridge (assistantApi)
   src/
-    App.jsx             # Root React component (~1300 lines)
+    App.jsx             # Root React component (~1350 lines)
+    main.jsx            # React entry point
     layout.js           # Responsive sidebar/workspace layout
     transcript.js       # Transcript export utilities
     styles.css          # Comprehensive styling (~1200 lines)
@@ -75,6 +78,7 @@ desktop/
 infra/
   stacks/
     platform_baseline_stack.py  # CDK stack (S3, CloudWatch, IAM)
+    config.py           # Stack configuration
   app.py                # CDK app entry point
 scripts/                # Deployment & smoke-test helpers
 tests/                  # Python unit tests (unittest)
@@ -95,12 +99,13 @@ Configuration lives in `.env` at repo root (see `.env.example` for full referenc
 
 - `AI_PROVIDER` — `bedrock` or `anthropic`
 - `AWS_REGION`, `AWS_PROFILE` — AWS config
-- `BEDROCK_INFERENCE_PROFILE_ARN` — preferred Bedrock target (cross-region)
+- `BEDROCK_INFERENCE_PROFILE_ARN`, `BEDROCK_INFERENCE_PROFILE_ID` — preferred Bedrock target (cross-region)
 - `BEDROCK_MODEL_ID` — fallback direct model ID
 - `ANTHROPIC_API_KEY` — for direct Anthropic fallback
 - `MODEL_MAX_TOKENS`, `MODEL_TEMPERATURE` — generation params
 - `CONTEXT_WINDOW_MAX_TURNS`, `CONTEXT_WINDOW_MAX_CHARS` — trimming limits
 - `BEDROCK_GUARDRAIL_*` — optional guardrail config
+- `ASSISTANT_SYSTEM_PROMPT` — customizable system prompt text
 
 ## API endpoints
 
@@ -132,4 +137,10 @@ GitHub Actions workflow (`.github/workflows/smoke.yml`):
 - JavaScript: no eslint/prettier configured yet
 - Tests: Python in `tests/`, React in `desktop/src/*.test.{js,jsx}`
 - No Docker — desktop app packaged via electron-builder
-- Issues tracked in GitHub Issues with labels: `bug`, `enhancement`, `ui/ux`, `data layer`, `backend`
+- Issues tracked in GitHub Issues with the following metadata:
+  - **Assignee:** `justactnatural`
+  - **Labels:** from `bug`, `enhancement`, `ui/ux`, `data layer`, `backend`
+  - **Type:** `Bug`, `Feature`, or as appropriate
+  - **Project:** "Hybrid AI Platform Roadmap" (set status to "In Progress" when work begins)
+  - **Milestone:** `complete desktop app` (current active milestone)
+- PRs should reference their issue (`Closes #N`) and target `dev`

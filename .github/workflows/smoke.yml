@@ -32,11 +32,20 @@ jobs:
       - name: Install infra dependencies
         run: make infra-bootstrap
 
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
       - name: Install CDK CLI
         run: npm install -g aws-cdk
 
       - name: Run local smoke checks
         run: make smoke
+
+      - name: Run E2E integration tests
+        run: make test-e2e
 
   live-bedrock-smoke:
     if: ${{ github.event_name == 'workflow_dispatch' }}

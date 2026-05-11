@@ -9,7 +9,7 @@ JSII_RUNTIME_PACKAGE_CACHE_ROOT ?= $(CURDIR)/.cache/jsii
 
 export JSII_RUNTIME_PACKAGE_CACHE_ROOT
 
-.PHONY: check-python bootstrap install run example compile test verify frontend-bootstrap desktop-api desktop-dev desktop-build desktop-pack infra-bootstrap infra-test cdk-bootstrap cdk-synth cdk-diff cdk-deploy smoke smoke-local smoke-bedrock smoke-stack smoke-deploy tree
+.PHONY: check-python bootstrap install run example compile test verify frontend-bootstrap desktop-api desktop-dev desktop-build desktop-pack infra-bootstrap infra-test cdk-bootstrap cdk-synth cdk-diff cdk-deploy smoke smoke-local smoke-bedrock smoke-stack smoke-deploy test-e2e test-e2e-electron tree
 
 check-python:
 	$(PYTHON) -c "import sys; sys.exit(0 if sys.version_info >= (3, 12) else 'Python >= 3.12 required; set PYTHON=/path/to/python3.12+')"
@@ -83,6 +83,12 @@ cdk-diff:
 
 cdk-deploy:
 	./scripts/deploy-baseline.sh
+
+test-e2e:
+	npx playwright test --config=e2e/playwright.config.ts --project=integration
+
+test-e2e-electron:
+	npx playwright test --config=e2e/playwright.config.ts --project=electron
 
 tree:
 	find . -path ./.git -prune -o -path ./.venv -prune -o -path ./infra/.venv -prune -o -print | sort

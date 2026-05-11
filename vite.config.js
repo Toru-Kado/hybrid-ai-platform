@@ -10,5 +10,6 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: "./desktop/src/test/setup.js",
+    exclude: ["e2e/**", "node_modules/**", ".cache/**", "infra/**"],
   },
 });

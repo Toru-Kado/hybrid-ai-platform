@@ -1,3 +1,15 @@
+"""SQLite-backed session and message persistence layer.
+
+This module provides the SessionStore class which manages chat sessions and
+their messages in a local SQLite database. It supports schema versioning with
+forward migrations, full-text search (FTS5) over message content, and
+auto-generated session titles from prompt text.
+
+The database is the single source of truth for conversation history in the
+desktop application. The Electron frontend reads and writes through the
+HTTP API layer, which delegates to SessionStore.
+"""
+
 from __future__ import annotations
 
 import json
@@ -8,14 +20,17 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 1
+# Incremented each time a new migration is added. Migrations run forward-only.
+SCHEMA_VERSION = 2
 
 
 def _utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(UTC).isoformat()
 
 
 def _default_title(prompt: str) -> str:
+    """Derive a session title from the first user prompt, truncated to 72 chars."""
     compact = " ".join(prompt.strip().split())
     if not compact:
         return "New session"
@@ -23,7 +38,33 @@ def _default_title(prompt: str) -> str:
 
 
 @dataclass(slots=True)
+class SearchResult:
+    """A single full-text search hit with contextual snippet and session metadata."""
+
+    message_id: int
+    session_id: int
+    role: str
+    content: str
+    created_at: str
+    session_title: str
+    snippet: str
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "message_id": self.message_id,
+            "session_id": self.session_id,
+            "role": self.role,
+            "content": self.content,
+            "created_at": self.created_at,
+            "session_title": self.session_title,
+            "snippet": self.snippet,
+        }
+
+
+@dataclass(slots=True)
 class SessionSummary:
+    """Lightweight session record used in list views, including message count and last-message preview."""
+
     session_id: int
     title: str
     created_at: str
@@ -44,6 +85,8 @@ class SessionSummary:
 
 @dataclass(slots=True)
 class SessionMessage:
+    """A single message within a session, with optional provider-returned metadata."""
+
     message_id: int
     session_id: int
     role: str
@@ -63,12 +106,21 @@ class SessionMessage:
 
 
 class SessionStore:
+    """SQLite-backed store for chat sessions and messages.
+
+    Manages the full lifecycle of sessions (create, read, update, delete) and
+    their associated messages. Uses schema versioning via SQLite PRAGMA
+    user_version and applies forward migrations on initialization. Also
+    provides full-text search over message content using FTS5.
+    """
+
     def __init__(self, db_path: str | Path) -> None:
         self._db_path = Path(db_path)
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._initialize()
 
     def list_sessions(self) -> list[SessionSummary]:
+        """Return all sessions ordered by most recently updated, with message counts."""
         with closing(self._connect()) as connection:
             rows = connection.execute(
                 """
@@ -95,6 +147,7 @@ class SessionStore:
         return [self._summary_from_row(row) for row in rows]
 
     def create_session(self, title: str | None = None) -> SessionSummary:
+        """Create a new empty session with the given title (defaults to 'New session')."""
         created_at = _utc_now()
         clean_title = (title or "").strip() or "New session"
         with closing(self._connect()) as connection:
@@ -256,7 +309,9 @@ class SessionStore:
             )
             if current_version < 1:
                 self._migrate_to_v1(connection)
-                connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+            if current_version < 2:
+                self._migrate_to_v2(connection)
+            connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
             connection.commit()
 
     def _migrate_to_v1(self, connection: sqlite3.Connection) -> None:
@@ -295,6 +350,121 @@ class SessionStore:
             ON messages (session_id, id)
             """
         )
+
+    def _migrate_to_v2(self, connection: sqlite3.Connection) -> None:
+        connection.execute(
+            """
+            CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+                content,
+                content='messages',
+                content_rowid='id'
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO messages_fts(rowid, content)
+            SELECT id, content FROM messages
+            """
+        )
+        connection.execute(
+            """
+            CREATE TRIGGER IF NOT EXISTS messages_fts_insert
+            AFTER INSERT ON messages
+            BEGIN
+                INSERT INTO messages_fts(rowid, content) VALUES (new.id, new.content);
+            END
+            """
+        )
+        connection.execute(
+            """
+            CREATE TRIGGER IF NOT EXISTS messages_fts_delete
+            AFTER DELETE ON messages
+            BEGIN
+                INSERT INTO messages_fts(messages_fts, rowid, content)
+                VALUES('delete', old.id, old.content);
+            END
+            """
+        )
+        connection.execute(
+            """
+            CREATE TRIGGER IF NOT EXISTS messages_fts_update
+            AFTER UPDATE OF content ON messages
+            BEGIN
+                INSERT INTO messages_fts(messages_fts, rowid, content)
+                VALUES('delete', old.id, old.content);
+                INSERT INTO messages_fts(rowid, content) VALUES (new.id, new.content);
+            END
+            """
+        )
+
+    def search_messages(
+        self,
+        query: str,
+        *,
+        session_id: int | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[SearchResult]:
+        sanitized = self._sanitize_fts_query(query)
+        if not sanitized:
+            return []
+
+        with closing(self._connect()) as connection:
+            if session_id is not None:
+                rows = connection.execute(
+                    """
+                    SELECT
+                        m.id, m.session_id, m.role, m.content, m.created_at,
+                        s.title AS session_title,
+                        snippet(messages_fts, 0, '<mark>', '</mark>', '...', 32) AS snippet
+                    FROM messages_fts
+                    JOIN messages m ON m.id = messages_fts.rowid
+                    JOIN sessions s ON s.id = m.session_id
+                    WHERE messages_fts MATCH ?
+                      AND m.session_id = ?
+                    ORDER BY rank
+                    LIMIT ? OFFSET ?
+                    """,
+                    (sanitized, session_id, limit, offset),
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    """
+                    SELECT
+                        m.id, m.session_id, m.role, m.content, m.created_at,
+                        s.title AS session_title,
+                        snippet(messages_fts, 0, '<mark>', '</mark>', '...', 32) AS snippet
+                    FROM messages_fts
+                    JOIN messages m ON m.id = messages_fts.rowid
+                    JOIN sessions s ON s.id = m.session_id
+                    WHERE messages_fts MATCH ?
+                    ORDER BY rank
+                    LIMIT ? OFFSET ?
+                    """,
+                    (sanitized, limit, offset),
+                ).fetchall()
+
+        return [
+            SearchResult(
+                message_id=int(row["id"]),
+                session_id=int(row["session_id"]),
+                role=str(row["role"]),
+                content=str(row["content"]),
+                created_at=str(row["created_at"]),
+                session_title=str(row["session_title"]),
+                snippet=str(row["snippet"]),
+            )
+            for row in rows
+        ]
+
+    def _sanitize_fts_query(self, query: str) -> str:
+        stripped = query.strip()
+        if not stripped:
+            return ""
+        terms = stripped.split()
+        safe_terms = ['"' + term.replace('"', '""') + '"' for term in terms if term]
+        return " ".join(safe_terms)
 
     def _summary_from_row(self, row: sqlite3.Row) -> SessionSummary:
         return SessionSummary(
