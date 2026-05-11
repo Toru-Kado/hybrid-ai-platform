@@ -135,4 +135,10 @@ GitHub Actions workflow (`.github/workflows/smoke.yml`):
 - JavaScript: no eslint/prettier configured yet
 - Tests: Python in `tests/`, React in `desktop/src/*.test.{js,jsx}`
 - No Docker — desktop app packaged via electron-builder
-- Issues tracked in GitHub Issues with labels: `bug`, `enhancement`, `ui/ux`, `data layer`, `backend`
+- Issues tracked in GitHub Issues with the following metadata:
+  - **Assignee:** `justactnatural`
+  - **Labels:** from `bug`, `enhancement`, `ui/ux`, `data layer`, `backend`
+  - **Type:** `Bug`, `Feature`, or as appropriate
+  - **Project:** "Hybrid AI Platform Roadmap" (set status to "In Progress" when work begins)
+  - **Milestone:** `complete desktop app` (current active milestone)
+- PRs should reference their issue (`Closes #N`) and target `dev`
