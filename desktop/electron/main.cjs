@@ -276,6 +276,19 @@ ipcMain.handle("assistant:searchMessages", async (_event, query, options = {}) =
   return body;
 });
 
+ipcMain.handle("assistant:complete", async (_event, payload) => {
+  const response = await fetch(`${API_BASE_URL}/api/complete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const body = await response.json();
+  if (!response.ok) {
+    throw new Error(body.error || "Completion request failed.");
+  }
+  return body;
+});
+
 ipcMain.handle("assistant:getAwsProfile", async () => {
   return process.env.AWS_PROFILE || null;
 });

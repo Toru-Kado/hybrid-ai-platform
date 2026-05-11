@@ -7,9 +7,11 @@ export default function PreferencesPanel({
   temperature,
   maxTokens,
   isBusy,
+  predictionEnabled,
   onSetSystemPrompt,
   onSetTemperature,
   onSetMaxTokens,
+  onSetPredictionEnabled,
 }) {
   return (
     <section
@@ -87,6 +89,14 @@ export default function PreferencesPanel({
               value={maxTokens}
               disabled={isBusy}
               onChange={(event) => onSetMaxTokens(event.target.value)}
+            />
+          </label>
+          <label className="panel-field panel-field-wide prediction-toggle">
+            <span>Inline text prediction</span>
+            <input
+              type="checkbox"
+              checked={predictionEnabled}
+              onChange={(event) => onSetPredictionEnabled(event.target.checked)}
             />
           </label>
         </div>
