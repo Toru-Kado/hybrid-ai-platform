@@ -21,7 +21,8 @@ test.describe("Full chat flow", () => {
       env: {
         ...process.env,
         NODE_ENV: "test",
-        HYBRID_AI_API_PORT: "0",
+        HYBRID_AI_API_PORT: "8766",
+        HYBRID_AI_SKIP_BACKEND: "1",
       },
     });
 

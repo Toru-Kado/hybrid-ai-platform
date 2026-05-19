@@ -9,7 +9,7 @@ JSII_RUNTIME_PACKAGE_CACHE_ROOT ?= $(CURDIR)/.cache/jsii
 
 export JSII_RUNTIME_PACKAGE_CACHE_ROOT
 
-.PHONY: check-python bootstrap install run example compile test verify frontend-bootstrap desktop-api desktop-dev desktop-build desktop-pack infra-bootstrap infra-test cdk-bootstrap cdk-synth cdk-diff cdk-deploy smoke smoke-local smoke-bedrock smoke-stack smoke-deploy test-e2e test-e2e-electron tree
+.PHONY: check-python bootstrap install run example compile test verify frontend-bootstrap desktop-api desktop-dev desktop-build desktop-pack infra-bootstrap infra-test cdk-bootstrap cdk-synth cdk-synth-dev cdk-synth-staging cdk-synth-prod cdk-diff cdk-diff-dev cdk-diff-staging cdk-diff-prod cdk-deploy cdk-deploy-dev cdk-deploy-staging cdk-deploy-prod cdk-synth-serverless cdk-deploy-serverless-dev cdk-deploy-serverless-staging cdk-deploy-serverless-prod lambda-package deploy-frontend smoke smoke-local smoke-bedrock smoke-stack smoke-deploy test-e2e test-e2e-electron tree
 
 check-python:
 	$(PYTHON) -c "import sys; sys.exit(0 if sys.version_info >= (3, 12) else 'Python >= 3.12 required; set PYTHON=/path/to/python3.12+')"
@@ -78,11 +78,57 @@ cdk-bootstrap:
 cdk-synth:
 	cd infra && cdk synth
 
+cdk-synth-dev:
+	ENVIRONMENT_TYPE=dev cd infra && cdk synth
+
+cdk-synth-staging:
+	ENVIRONMENT_TYPE=staging cd infra && cdk synth
+
+cdk-synth-prod:
+	ENVIRONMENT_TYPE=prod cd infra && cdk synth
+
 cdk-diff:
 	cd infra && cdk diff
 
+cdk-diff-dev:
+	ENVIRONMENT_TYPE=dev cd infra && cdk diff
+
+cdk-diff-staging:
+	ENVIRONMENT_TYPE=staging cd infra && cdk diff
+
+cdk-diff-prod:
+	ENVIRONMENT_TYPE=prod cd infra && cdk diff
+
 cdk-deploy:
 	./scripts/deploy-baseline.sh
+
+cdk-deploy-dev:
+	ENVIRONMENT_TYPE=dev ./scripts/deploy-baseline.sh
+
+cdk-deploy-staging:
+	ENVIRONMENT_TYPE=staging ./scripts/deploy-baseline.sh
+
+cdk-deploy-prod:
+	ENVIRONMENT_TYPE=prod ./scripts/deploy-baseline.sh
+
+# Serverless stack targets
+lambda-package:
+	$(PYTHON_BIN) scripts/package-lambda.py
+
+cdk-synth-serverless:
+	cd infra && cdk synth HybridAiPlatformServerless
+
+cdk-deploy-serverless-dev:
+	ENVIRONMENT_TYPE=dev ./scripts/deploy-serverless.sh
+
+cdk-deploy-serverless-staging:
+	ENVIRONMENT_TYPE=staging ./scripts/deploy-serverless.sh
+
+cdk-deploy-serverless-prod:
+	ENVIRONMENT_TYPE=prod ./scripts/deploy-serverless.sh
+
+deploy-frontend:
+	./scripts/deploy-frontend.sh
 
 test-e2e:
 	npx playwright test --config=e2e/playwright.config.ts --project=integration

@@ -40,6 +40,9 @@ from app.config.logging import configure_logging
 from app.config.settings import GuardrailSettings, Settings, SettingsError
 from app.session_store import SessionStore
 from app.services.chat import ChatService
+from app.billing import get_billing_manager
+from app.features import get_feature_gate
+from app.referrals import get_referral_manager
 
 logger = logging.getLogger(__name__)
 
@@ -142,11 +145,65 @@ class AssistantApiHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if path == "/api/referrals/code":
+            user_id = self._get_user_id_from_request()
+            if not user_id:
+                self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "User authentication required"})
+                return
+
+            referral_mgr = get_referral_manager()
+            code_obj = referral_mgr.get_referral_code(user_id)
+
+            if not code_obj:
+                # Generate new code if none exists
+                code = referral_mgr.generate_referral_code(user_id)
+                response = {"code": code, "new": True}
+            else:
+                response = {
+                    "code": code_obj.code,
+                    "uses": code_obj.uses_count,
+                    "max_uses": code_obj.max_uses,
+                    "new": False
+                }
+
+            self._send_json(HTTPStatus.OK, response)
+            return
+
+        if path == "/api/referrals/stats":
+            user_id = self._get_user_id_from_request()
+            if not user_id:
+                self._send_json(HTTPStatus.UNAUTHORIZED, {"error": "User authentication required"})
+                return
+
+            referral_mgr = get_referral_manager()
+            stats = referral_mgr.get_referral_stats(user_id)
+            self._send_json(HTTPStatus.OK, stats)
+            return
+
         self._send_json(HTTPStatus.NOT_FOUND, {"error": "Not found"})
 
     def do_POST(self) -> None:
         """Route POST requests to session creation, chat, or completion endpoints."""
         path = self._request_path()
+
+        if path == "/api/referrals/use":
+            try:
+                payload = self._read_json_body()
+                referral_code = _required_string(payload, "code")
+                user_id = _required_string(payload, "user_id")
+            except ValueError as exc:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+                return
+
+            referral_mgr = get_referral_manager()
+            success = referral_mgr.use_referral_code(referral_code, user_id)
+
+            if success:
+                self._send_json(HTTPStatus.OK, {"success": True, "message": "Referral code applied"})
+            else:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": "Invalid or expired referral code"})
+            return
+
         if path == "/api/sessions":
             try:
                 payload = self._read_json_body(allow_empty=True)
@@ -522,6 +579,24 @@ class AssistantApiHandler(BaseHTTPRequestHandler):
         if result is None:
             raise RuntimeError("Provider stream ended without a final response.")
         return result
+
+    def _get_user_id_from_request(self) -> Optional[str]:
+        """Extract user ID from request headers or generate demo ID.
+
+        In production, this would validate authentication tokens.
+        For demo purposes, uses X-User-ID header or generates anonymous ID.
+        """
+        user_id = self.headers.get('X-User-ID')
+        if user_id:
+            return user_id.strip()
+
+        # For demo: generate anonymous user ID based on IP/session
+        # In production, this would require proper authentication
+        import hashlib
+        import time
+        client_ip = self.client_address[0] if self.client_address else 'unknown'
+        session_key = f"{client_ip}_{int(time.time() / 3600)}"  # Changes hourly
+        return hashlib.md5(session_key.encode()).hexdigest()[:16]
 
 
 class AssistantApiServer(ThreadingHTTPServer):
