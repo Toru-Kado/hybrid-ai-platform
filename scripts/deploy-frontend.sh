@@ -45,11 +45,11 @@ echo "Target S3 bucket: $SPA_BUCKET"
 
 # Build the frontend
 cd "$PROJECT_ROOT"
-echo "Building React SPA..."
-npm run desktop:build
+echo "Building React SPA (web mode)..."
+npm run web:build
 
 # Sync to S3
-BUILD_DIR="$PROJECT_ROOT/desktop/dist"
+BUILD_DIR="$PROJECT_ROOT/dist/web"
 if [ ! -d "$BUILD_DIR" ]; then
     echo "ERROR: Build output not found at $BUILD_DIR"
     exit 1
