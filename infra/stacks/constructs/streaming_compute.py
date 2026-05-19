@@ -64,7 +64,14 @@ class StreamingCompute(Construct):
             layers=[lambda_layer],
             memory_size=config.lambda_stream_memory_mb,
             timeout=Duration.seconds(config.lambda_stream_timeout_seconds),
-            reserved_concurrent_executions=config.lambda_stream_reserved_concurrency,
+            # Only set reserved concurrency if explicitly configured above 0.
+            # Accounts with low limits (default 10) can't reserve without going
+            # below the 10-unreserved minimum required by Lambda.
+            reserved_concurrent_executions=(
+                config.lambda_stream_reserved_concurrency
+                if config.lambda_stream_reserved_concurrency > 0
+                else None
+            ),
             environment={
                 "SESSIONS_TABLE_NAME": sessions_table.table_name,
                 "POWERTOOLS_SERVICE_NAME": f"{stack_prefix}-stream",
@@ -100,7 +107,7 @@ class StreamingCompute(Construct):
             invoke_mode=lambda_.InvokeMode.RESPONSE_STREAM,
             cors=lambda_.FunctionUrlCorsOptions(
                 allowed_origins=["*"],
-                allowed_methods=[lambda_.HttpMethod.POST, lambda_.HttpMethod.OPTIONS],
+                allowed_methods=[lambda_.HttpMethod.ALL],
                 allowed_headers=["Content-Type", "Authorization"],
                 max_age=Duration.hours(1),
             ),

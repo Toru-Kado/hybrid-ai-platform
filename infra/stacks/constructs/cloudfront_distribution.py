@@ -87,31 +87,12 @@ class CloudFrontDistribution(Construct):
             protocol_policy=cloudfront.OriginProtocolPolicy.HTTPS_ONLY,
         )
 
-        # CloudFront does not allow Authorization in OriginRequestPolicy;
-        # it must be included in the CachePolicy header behavior instead.
-        no_cache_policy = cloudfront.CachePolicy(
-            self,
-            "NoCachePolicy",
-            cache_policy_name=f"{stack_prefix}-no-cache",
-            default_ttl=Duration.seconds(0),
-            min_ttl=Duration.seconds(0),
-            max_ttl=Duration.seconds(0),
-            header_behavior=cloudfront.CacheHeaderBehavior.allow_list(
-                "Authorization"
-            ),
-            query_string_behavior=cloudfront.CacheQueryStringBehavior.all(),
-            enable_accept_encoding_gzip=True,
-        )
-
-        all_viewer_origin_request_policy = cloudfront.OriginRequestPolicy(
-            self,
-            "AllViewerPolicy",
-            origin_request_policy_name=f"{stack_prefix}-all-viewer",
-            header_behavior=cloudfront.OriginRequestHeaderBehavior.allow_list(
-                "Content-Type", "X-Amz-Date", "X-Amz-Security-Token"
-            ),
-            query_string_behavior=cloudfront.OriginRequestQueryStringBehavior.all(),
-        )
+        # Use AWS-managed policies for API origins:
+        # - CACHING_DISABLED: no caching, forwards all query strings
+        # - ALL_VIEWER_EXCEPT_HOST_HEADER: forwards all viewer headers
+        #   (including Authorization) and query strings to the origin
+        api_cache_policy = cloudfront.CachePolicy.CACHING_DISABLED
+        api_origin_request_policy = cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER
 
         # Custom domain requires both a domain name and an ACM certificate
         # in us-east-1 (CloudFront global requirement)
@@ -139,15 +120,15 @@ class CloudFrontDistribution(Construct):
                 "/api/*": cloudfront.BehaviorOptions(
                     origin=api_origin,
                     viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,
-                    cache_policy=no_cache_policy,
-                    origin_request_policy=all_viewer_origin_request_policy,
+                    cache_policy=api_cache_policy,
+                    origin_request_policy=api_origin_request_policy,
                     allowed_methods=cloudfront.AllowedMethods.ALLOW_ALL,
                 ),
                 "/api/chat/stream": cloudfront.BehaviorOptions(
                     origin=stream_origin,
                     viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,
-                    cache_policy=no_cache_policy,
-                    origin_request_policy=all_viewer_origin_request_policy,
+                    cache_policy=api_cache_policy,
+                    origin_request_policy=api_origin_request_policy,
                     allowed_methods=cloudfront.AllowedMethods.ALLOW_ALL,
                 ),
             },

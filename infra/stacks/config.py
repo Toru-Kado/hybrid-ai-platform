@@ -171,7 +171,7 @@ def _serverless_presets(env_type: EnvironmentType) -> dict:
             "lambda_api_memory_mb": 512,
             "lambda_stream_memory_mb": 1024,
             "lambda_stream_timeout_seconds": 120,
-            "lambda_stream_reserved_concurrency": 5,
+            "lambda_stream_reserved_concurrency": 0,
             "lambda_api_provisioned_concurrency": 0,
             "cognito_self_signup": True,
             "cognito_mfa": "optional",
