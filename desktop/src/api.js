@@ -117,6 +117,19 @@ export async function streamChatOverHttp(url, payload, handlers = {}) {
     }
 
     if (done) {
+      // Process any remaining buffered data (final event may lack trailing \n\n)
+      if (buffer.trim()) {
+        const event = parseSseChunk(buffer);
+        if (event) {
+          if (event.type === "complete" && event.payload) {
+            await handlers.onComplete?.(event.payload);
+            return event.payload;
+          }
+          if (event.type === "error") {
+            throw new Error(event.payload?.error || "Assistant request failed.");
+          }
+        }
+      }
       break;
     }
   }
