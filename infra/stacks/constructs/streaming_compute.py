@@ -99,12 +99,12 @@ class StreamingCompute(Construct):
             )
         )
 
-        # Function URL with RESPONSE_STREAM enables chunked transfer encoding
-        # for SSE delivery. Auth type NONE means the URL is publicly accessible;
-        # JWT validation is performed in the handler code.
+        # Function URL with BUFFERED invoke mode. The handler collects all SSE
+        # events and returns them as a single response body. Auth type NONE means
+        # the URL is publicly accessible; JWT validation is in the handler code.
         self.function_url = self.function.add_function_url(
             auth_type=lambda_.FunctionUrlAuthType.NONE,
-            invoke_mode=lambda_.InvokeMode.RESPONSE_STREAM,
+            invoke_mode=lambda_.InvokeMode.BUFFERED,
             cors=lambda_.FunctionUrlCorsOptions(
                 allowed_origins=["*"],
                 allowed_methods=[lambda_.HttpMethod.ALL],

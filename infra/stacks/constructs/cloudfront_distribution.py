@@ -117,15 +117,15 @@ class CloudFrontDistribution(Construct):
                 allowed_methods=cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
             ),
             additional_behaviors={
-                "/api/*": cloudfront.BehaviorOptions(
-                    origin=api_origin,
+                "/api/chat/stream": cloudfront.BehaviorOptions(
+                    origin=stream_origin,
                     viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,
                     cache_policy=api_cache_policy,
                     origin_request_policy=api_origin_request_policy,
                     allowed_methods=cloudfront.AllowedMethods.ALLOW_ALL,
                 ),
-                "/api/chat/stream": cloudfront.BehaviorOptions(
-                    origin=stream_origin,
+                "/api/*": cloudfront.BehaviorOptions(
+                    origin=api_origin,
                     viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.HTTPS_ONLY,
                     cache_policy=api_cache_policy,
                     origin_request_policy=api_origin_request_policy,
