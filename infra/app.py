@@ -15,8 +15,9 @@ import sys
 
 from aws_cdk import App, Environment
 
-from stacks.config import EnvironmentType, PlatformConfig
+from stacks.config import EnvironmentType, PlatformConfig, ServerlessConfig
 from stacks.platform_baseline_stack import HybridAiPlatformBaselineStack
+from stacks.platform_serverless_stack import HybridAiPlatformServerlessStack
 
 
 def create_app() -> App:
@@ -24,6 +25,7 @@ def create_app() -> App:
     app = App()
 
     config = PlatformConfig.from_env()
+    serverless_config = ServerlessConfig.from_env()
     environment = Environment(
         account=os.getenv("CDK_DEFAULT_ACCOUNT"),
         region=os.getenv("CDK_DEFAULT_REGION", os.getenv("AWS_REGION", "us-east-1")),
@@ -34,6 +36,14 @@ def create_app() -> App:
         app,
         stack_name,
         config=config,
+        env=environment,
+    )
+
+    serverless_stack_name = "HybridAiPlatformServerless"
+    HybridAiPlatformServerlessStack(
+        app,
+        serverless_stack_name,
+        config=serverless_config,
         env=environment,
     )
 
