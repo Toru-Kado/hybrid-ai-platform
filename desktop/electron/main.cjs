@@ -72,6 +72,9 @@ function resolvePythonCommand(rootDir) {
         ]
       : [
           path.join(rootDir, ".venv", "bin", "python"),
+          "/opt/homebrew/bin/python3",
+          "/usr/local/bin/python3",
+          "/usr/bin/python3",
           "python3",
           "python",
         ];
@@ -97,6 +100,15 @@ function startBackend() {
     userDataPath: app.getPath("userData"),
   });
 
+  // Build PYTHONPATH so the bundled deps and app source are importable.
+  // In packaged builds, deps live at desktop/python-deps/ inside the bundle.
+  // In dev, the venv handles imports so PYTHONPATH is only needed for the app itself.
+  const pythonPath = [rootDir];
+  const bundledDeps = path.join(rootDir, "desktop", "python-deps");
+  if (fs.existsSync(bundledDeps)) {
+    pythonPath.push(bundledDeps);
+  }
+
   backendProcess = spawn(
     pythonCommand,
     [
@@ -116,6 +128,7 @@ function startBackend() {
       env: {
         ...process.env,
         PYTHONUNBUFFERED: "1",
+        PYTHONPATH: pythonPath.join(path.delimiter),
       },
       stdio: ["ignore", "pipe", "pipe"],
     },

@@ -26,3 +26,4 @@ infra/.venv/
 
 e2e/test-results/
 e2e/playwright-report/
+desktop/python-deps/
