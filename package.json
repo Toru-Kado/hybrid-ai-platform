@@ -13,8 +13,9 @@
     "desktop:icons": "electron scripts/build_desktop_icons.cjs",
     "desktop:test": "vitest run",
     "desktop:preview": "vite preview --host 127.0.0.1",
-    "desktop:pack": "npm run desktop:build && electron-builder --dir",
-    "desktop:dist": "npm run desktop:build && electron-builder"
+    "desktop:bundle-python": "pip install --target desktop/python-deps -r requirements-desktop.txt --upgrade --quiet",
+    "desktop:pack": "npm run desktop:bundle-python && npm run desktop:build && electron-builder --dir",
+    "desktop:dist": "npm run desktop:bundle-python && npm run desktop:build && electron-builder"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.13.24",
@@ -48,6 +49,7 @@
       "desktop/assets/**/*",
       "desktop/dist/**/*",
       "desktop/electron/**/*",
+      "desktop/python-deps/**/*",
       "pyproject.toml",
       "package.json"
     ],
