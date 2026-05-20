@@ -1,38 +1,22 @@
+/**
+ * @file Desktop API client layer.
+ *
+ * Provides two communication paths to the Python backend server:
+ *   1. IPC via `window.assistantApi` (Electron preload bridge) — used when
+ *      running inside the packaged desktop shell.
+ *   2. Direct HTTP fetch (fallbackApi) — used during Vite dev-server testing
+ *      without Electron wrapping.
+ *
+ * The `api()` helper auto-selects the right path at runtime. Streaming chat
+ * uses a direct SSE connection (bypassing IPC) for lower latency; see
+ * `streamChatApi()` and `streamChatOverHttp()`.
+ */
+
 import { fetchWithRetry } from "./retry";
 import { transcriptFormatConfig } from "./transcript";
-import { AUTH_ENABLED, getAccessToken, refreshSession } from "./auth";
 
 const API_PORT = import.meta.env.VITE_API_PORT || 8765;
-const isWebMode = !window.assistantApi && AUTH_ENABLED;
-const API_BASE = isWebMode
-  ? (import.meta.env.VITE_API_BASE_URL || "")
-  : `http://127.0.0.1:${API_PORT}`;
-
-async function getAuthHeaders() {
-  if (!AUTH_ENABLED) return {};
-  const token = await getAccessToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-async function fetchWithAuth(url, options = {}) {
-  const authHeaders = await getAuthHeaders();
-  const merged = {
-    ...options,
-    headers: { ...(options.headers || {}), ...authHeaders },
-  };
-  const response = await fetchWithRetry(url, merged);
-  if (response.status === 401 && AUTH_ENABLED) {
-    const refreshed = await refreshSession();
-    if (refreshed) {
-      const newHeaders = await getAuthHeaders();
-      return fetchWithRetry(url, {
-        ...options,
-        headers: { ...(options.headers || {}), ...newHeaders },
-      });
-    }
-  }
-  return response;
-}
+const API_BASE = `http://127.0.0.1:${API_PORT}`;
 
 function parseSseChunk(chunk) {
   const lines = chunk.split("\n");
@@ -64,10 +48,9 @@ function parseSseChunk(chunk) {
 }
 
 export async function streamChatOverHttp(url, payload, handlers = {}) {
-  const authHeaders = await getAuthHeaders();
   const response = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 
@@ -139,15 +122,15 @@ export async function streamChatOverHttp(url, payload, handlers = {}) {
 
 const fallbackApi = {
   health: async () => {
-    const response = await fetchWithAuth(`${API_BASE}/api/health`);
+    const response = await fetchWithRetry(`${API_BASE}/api/health`);
     return response.json();
   },
   listSessions: async () => {
-    const response = await fetchWithAuth(`${API_BASE}/api/sessions`);
+    const response = await fetchWithRetry(`${API_BASE}/api/sessions`);
     return response.json();
   },
   createSession: async (payload) => {
-    const response = await fetchWithAuth(`${API_BASE}/api/sessions`, {
+    const response = await fetchWithRetry(`${API_BASE}/api/sessions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload || {}),
@@ -155,7 +138,7 @@ const fallbackApi = {
     return response.json();
   },
   getSession: async (sessionId) => {
-    const response = await fetchWithAuth(`${API_BASE}/api/sessions/${sessionId}`);
+    const response = await fetchWithRetry(`${API_BASE}/api/sessions/${sessionId}`);
     const body = await response.json();
     if (!response.ok) {
       throw new Error(body.error || "Failed to load session.");
@@ -163,7 +146,7 @@ const fallbackApi = {
     return body;
   },
   renameSession: async (sessionId, payload) => {
-    const response = await fetchWithAuth(`${API_BASE}/api/sessions/${sessionId}`, {
+    const response = await fetchWithRetry(`${API_BASE}/api/sessions/${sessionId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -175,7 +158,7 @@ const fallbackApi = {
     return body;
   },
   deleteSession: async (sessionId) => {
-    const response = await fetchWithAuth(`${API_BASE}/api/sessions/${sessionId}`, {
+    const response = await fetchWithRetry(`${API_BASE}/api/sessions/${sessionId}`, {
       method: "DELETE",
     });
     if (!response.ok) {
@@ -200,7 +183,7 @@ const fallbackApi = {
     return { canceled: false, path: link.download };
   },
   complete: async (payload) => {
-    const response = await fetchWithAuth(`${API_BASE}/api/complete`, {
+    const response = await fetchWithRetry(`${API_BASE}/api/complete`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -216,7 +199,7 @@ const fallbackApi = {
     if (options.sessionId) params.set("session_id", String(options.sessionId));
     if (options.limit) params.set("limit", String(options.limit));
     if (options.offset) params.set("offset", String(options.offset));
-    const response = await fetchWithAuth(
+    const response = await fetchWithRetry(
       `${API_BASE}/api/search?${params}`
     );
     const body = await response.json();
