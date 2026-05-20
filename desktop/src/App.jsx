@@ -1,3 +1,15 @@
+/**
+ * @file Root application component — assembles the full desktop UI.
+ *
+ * Composes the top-level layout from three custom hooks (useChat,
+ * useMessageSearch, useTextPrediction) and presentational components.
+ * Responsible for:
+ *   - Wiring hook state/actions into the component tree
+ *   - Theme initialisation and toggle
+ *   - Native menu action forwarding (new session, export, toggle sidebar)
+ *   - Cross-session search navigation (loading a session from search results)
+ */
+
 import { useEffect, useRef, useState } from "react";
 import appIcon from "../assets/icon.png";
 import ChatHeader from "./components/ChatHeader";

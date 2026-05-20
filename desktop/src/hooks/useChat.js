@@ -1,3 +1,18 @@
+/**
+ * @file Core chat orchestration hook.
+ *
+ * Manages the full lifecycle of the desktop chat experience:
+ *   - Session CRUD (create, load, rename, delete)
+ *   - Streaming prompt submission via SSE with optimistic UI updates
+ *   - Error handling with contextual retry actions and SSO re-auth
+ *   - Sidebar layout state and drag-resize logic
+ *   - Clipboard and transcript export operations
+ *
+ * All backend communication flows through `api()` (IPC in Electron) and
+ * `streamChatApi()` (direct HTTP/SSE for streaming). State is lifted to
+ * this hook and passed down to presentational components via props.
+ */
+
 import { useEffect, useRef, useState } from "react";
 
 import { api, streamChatApi } from "../api";
@@ -49,6 +64,8 @@ export default function useChat() {
   const previousCompactRef = useRef(readCompactViewport());
   const mountedRef = useRef(true);
 
+  // Derived state: identifies the last assistant reply + its triggering prompt
+  // (enables the "Regenerate" action), and a unified busy flag.
   const latestAssistantPair = findLatestAssistantPair(messages);
   const isBusy = isLoading || streamingMessageId !== null;
 
@@ -250,9 +267,17 @@ export default function useChat() {
     });
   }
 
+  /**
+   * Sends a prompt to the streaming endpoint and manages the full optimistic
+   * update lifecycle: adds placeholder messages to the UI immediately, replaces
+   * them with server-persisted records as SSE events arrive, and handles errors
+   * including automatic SSO re-auth on expired AWS credentials.
+   */
   async function sendPrompt(requestPayload) {
     const trimmedPrompt = requestPayload.prompt.trim();
 
+    // Optimistic UI: insert pending user + empty assistant messages before
+    // the server responds, so the user sees immediate feedback.
     const pendingUserMessage = {
       message_id: `pending-user-${Date.now()}`,
       role: "user",

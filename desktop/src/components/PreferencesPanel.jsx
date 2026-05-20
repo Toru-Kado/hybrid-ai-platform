@@ -1,3 +1,13 @@
+/**
+ * @file Collapsible preferences panel — runtime info and per-session controls.
+ *
+ * Two cards:
+ *   1. Runtime card: shows the active provider, region, inference target, and
+ *      configuration source as reported by the /api/health endpoint.
+ *   2. Controls card: exposes adjustable session parameters (system prompt,
+ *      temperature, max tokens) and the text-prediction toggle.
+ */
+
 import { formatRuntimeValue, formatTargetKind, formatTargetSource } from "../utils";
 
 export default function PreferencesPanel({
