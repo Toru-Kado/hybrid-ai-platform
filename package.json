@@ -101,8 +101,8 @@
         }
       ],
       "icon": "desktop/assets/icon.ico",
-      "certificateFile": "certificates/win-certificate.p12",
-      "certificatePassword": "${env:WINCERT_PASSWORD}",
+      "cscLink": "certificates/win-certificate.p12",
+      "cscKeyPassword": "${env:WINCERT_PASSWORD}",
       "verifyUpdateCodeSignature": false
     },
     "linux": {

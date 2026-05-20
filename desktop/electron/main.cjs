@@ -390,9 +390,13 @@ ipcMain.handle("assistant:ssoLogin", async (_event, profileName) => {
 app.whenReady().then(async () => {
   try {
     applyApplicationIcon();
-    await createWindow(); 
+    if (!process.env.HYBRID_AI_SKIP_BACKEND) {
+      startBackend();
       await waitForBackend();
-    initAutoUpdater(mainWindow);  } catch (error) {
+    }
+    await createWindow();
+    initAutoUpdater(mainWindow);
+  } catch (error) {
     dialog.showErrorBox("TK-AI failed to start", String(error));
     app.quit();
   }
