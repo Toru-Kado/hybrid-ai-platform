@@ -1,3 +1,11 @@
+/**
+ * @file Chat panel header — session title, actions, runtime badge, and theme toggle.
+ *
+ * Displays the current session name with inline rename editing, session
+ * management buttons (delete, export), the sidebar toggle for compact layouts,
+ * a runtime connection summary, theme switcher, and preferences panel toggle.
+ */
+
 import RuntimeSummary from "./RuntimeSummary";
 
 export default function ChatHeader({

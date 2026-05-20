@@ -1,3 +1,11 @@
+/**
+ * @file Compact runtime connection badge shown in the chat header.
+ *
+ * Displays a "Connected" / "Starting" status pill alongside the provider
+ * name, target kind, and AWS region. Gives at-a-glance visibility into
+ * which inference path the backend is using.
+ */
+
 import { formatRuntimeValue, formatTargetKind } from "../utils";
 
 export default function RuntimeSummary({ health }) {

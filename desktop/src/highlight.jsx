@@ -1,3 +1,12 @@
+/**
+ * @file Search-term highlighting utilities for rendered message content.
+ *
+ * Provides case-insensitive substring highlighting that wraps matched
+ * segments in <mark> elements. Works both on raw text strings and within
+ * React element trees (recursing into children) so that Markdown-rendered
+ * assistant messages can be highlighted without breaking their structure.
+ */
+
 import React from "react";
 
 export function highlightTextSegment(text, query) {

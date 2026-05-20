@@ -1,3 +1,17 @@
+/**
+ * @file Prompt composer with inline ghost-text predictions.
+ *
+ * Renders a multiline textarea for user input with keyboard shortcuts:
+ *   - Enter: submit prompt (Shift+Enter for newline)
+ *   - Tab: accept full ghost-text suggestion
+ *   - Ctrl/Alt+Right: accept one word of the suggestion
+ *   - Escape: dismiss suggestion
+ *
+ * Displays contextual button labels (Send / Thinking / Streaming) based on
+ * current busy state. The ghost-text overlay is positioned behind the textarea
+ * using CSS absolute positioning.
+ */
+
 export default function ChatInput({
   prompt,
   isLoading,

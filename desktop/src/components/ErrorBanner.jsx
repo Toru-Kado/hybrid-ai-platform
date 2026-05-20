@@ -1,3 +1,11 @@
+/**
+ * @file Error alert banner — displays categorised errors with retry actions.
+ *
+ * Renders a role="alert" section colour-coded by error category (auth,
+ * network, provider, general). Shows the error title, raw message, an
+ * optional recovery hint, and contextual action buttons (retry / dismiss).
+ */
+
 export default function ErrorBanner({ errorState, onRetry, onDismiss }) {
   return (
     <section className={`status-banner status-banner-${errorState.category}`} role="alert" aria-live="assertive">
