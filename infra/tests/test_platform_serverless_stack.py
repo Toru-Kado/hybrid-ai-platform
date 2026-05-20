@@ -145,7 +145,7 @@ def test_default_stack_creates_function_url() -> None:
         "AWS::Lambda::Url",
         {
             "AuthType": "NONE",
-            "InvokeMode": "RESPONSE_STREAM",
+            "InvokeMode": "BUFFERED",
         },
     )
 
