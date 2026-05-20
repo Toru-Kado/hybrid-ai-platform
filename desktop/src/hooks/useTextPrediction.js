@@ -1,3 +1,16 @@
+/**
+ * @file Inline text prediction (ghost-text) hook.
+ *
+ * Provides speculative autocompletion suggestions as the user types a prompt.
+ * After a debounce period, sends the current input to the backend /api/complete
+ * endpoint and displays the returned continuation as faded "ghost text" in the
+ * composer. Users accept suggestions via Tab (full) or Ctrl+Right (word-by-word),
+ * or dismiss with Escape.
+ *
+ * Predictions are best-effort: network/model failures are silently swallowed.
+ * The feature can be toggled on/off from the preferences panel.
+ */
+
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "../api";

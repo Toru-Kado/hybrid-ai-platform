@@ -1,3 +1,14 @@
+/**
+ * @file Scrollable message thread with virtualisation for large sessions.
+ *
+ * Renders the full conversation as a vertically-scrolling log. For sessions
+ * exceeding VIRTUALIZATION_THRESHOLD messages, switches to @tanstack/react-virtual
+ * for efficient DOM recycling. Handles:
+ *   - Auto-scroll to bottom during streaming / loading
+ *   - Search-result scroll-into-view for highlighted messages
+ *   - Empty-state / loading / error placeholders via ThreadStateCard
+ */
+
 import { useCallback, useEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import MessageBubble from "./MessageBubble";

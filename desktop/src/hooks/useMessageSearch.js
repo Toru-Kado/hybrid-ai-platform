@@ -1,3 +1,14 @@
+/**
+ * @file Message search hook — local (in-session) and cross-session search.
+ *
+ * Provides debounced search over conversation messages with two modes:
+ *   - "session": client-side substring matching within the current session
+ *   - "all": server-side FTS5 full-text search across all persisted sessions
+ *
+ * Manages keyboard shortcuts (Cmd/Ctrl+F to open, Escape to close, Enter to
+ * navigate), result highlighting, and match index cycling.
+ */
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api";
 

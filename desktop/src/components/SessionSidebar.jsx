@@ -1,3 +1,12 @@
+/**
+ * @file Session history sidebar — lists all saved conversations.
+ *
+ * Displays a filterable, scrollable list of chat sessions ordered by
+ * most-recently-updated. Clicking a session loads it into the main thread.
+ * Supports compact (overlay) mode on narrow viewports and includes a
+ * "New chat" button for session creation.
+ */
+
 export default function SessionSidebar({
   isCompactLayout,
   isSidebarOpen,

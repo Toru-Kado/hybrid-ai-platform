@@ -1,3 +1,17 @@
+/**
+ * @file Single message bubble — renders user prompts and assistant responses.
+ *
+ * User messages are displayed as plain text; assistant messages are rendered
+ * as Markdown via react-markdown with GitHub Flavored Markdown support.
+ * Includes:
+ *   - Copy button for the full message content
+ *   - Regenerate button on the latest assistant reply
+ *   - Code block toolbar with per-block copy
+ *   - Search-term highlighting within rendered content
+ *   - Streaming indicator while tokens are still arriving
+ *   - Token/latency metadata footer for assistant responses
+ */
+
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 

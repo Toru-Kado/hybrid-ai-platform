@@ -1,3 +1,11 @@
+/**
+ * @file Search toolbar — inline search within the current session or across all sessions.
+ *
+ * Appears in-place above the message thread when activated (Cmd/Ctrl+F).
+ * Provides a text input, session/all toggle, match counter, and prev/next
+ * navigation buttons. Keyboard: Enter = next, Shift+Enter = prev, Escape = close.
+ */
+
 export default function SearchBar({
   isSearchOpen,
   searchQuery,

@@ -1,3 +1,12 @@
+/**
+ * @file Cross-session search results list.
+ *
+ * Rendered when search mode is "all sessions". Displays FTS5 search hits
+ * from the backend as a scrollable listbox with session title, role label,
+ * and highlighted snippet. Selecting a result loads that session and scrolls
+ * to the matched message.
+ */
+
 import { useEffect, useRef } from "react";
 
 export default function CrossSessionResults({

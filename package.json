@@ -14,14 +14,10 @@
     "desktop:test": "vitest run",
     "desktop:preview": "vite preview --host 127.0.0.1",
     "desktop:pack": "npm run desktop:build && electron-builder --dir",
-    "desktop:dist": "npm run desktop:build && electron-builder",
-    "web:dev": "vite --mode web --host 127.0.0.1",
-    "web:build": "vite build --mode web",
-    "web:preview": "vite preview --mode web --host 127.0.0.1"
+    "desktop:dist": "npm run desktop:build && electron-builder"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.13.24",
-    "amazon-cognito-identity-js": "^6.3.16",
     "electron-updater": "^6.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
