@@ -85,6 +85,41 @@ function resolvePythonCommand(rootDir) {
 }
 
 /**
+ * Resolves the .env configuration file path.
+ * Priority: HYBRID_AI_ENV_FILE env override > userData (packaged) > project root (dev).
+ * In packaged builds the project root is inside the app bundle and won't contain a
+ * user's .env, so we look in the Electron userData directory instead.
+ */
+function resolveEnvFile(rootDir) {
+  if (process.env.HYBRID_AI_ENV_FILE) {
+    return process.env.HYBRID_AI_ENV_FILE;
+  }
+
+  if (app.isPackaged) {
+    const userDataEnv = path.join(app.getPath("userData"), ".env");
+    if (fs.existsSync(userDataEnv)) {
+      return userDataEnv;
+    }
+    // Fall back to home directory config as a secondary location.
+    const homeConfigEnv = path.join(
+      app.getPath("home"),
+      ".config",
+      "tk-ai",
+      ".env",
+    );
+    if (fs.existsSync(homeConfigEnv)) {
+      return homeConfigEnv;
+    }
+    // Return the userData path even if it doesn't exist yet — the Python server's
+    // load_dotenv gracefully skips missing files, and the error message will hint
+    // at the expected location.
+    return userDataEnv;
+  }
+
+  return path.join(rootDir, ".env");
+}
+
+/**
  * Spawns the Python API server as a child process.
  * The server runs on localhost and provides all AI/session/search endpoints.
  * PYTHONUNBUFFERED=1 ensures log output streams immediately for debugging.
@@ -92,7 +127,7 @@ function resolvePythonCommand(rootDir) {
 function startBackend() {
   const rootDir = projectRoot();
   const pythonCommand = resolvePythonCommand(rootDir);
-  const envFile = process.env.HYBRID_AI_ENV_FILE || path.join(rootDir, ".env");
+  const envFile = resolveEnvFile(rootDir);
   const dbPath = resolveDesktopDbPath({
     envDbPath: process.env.HYBRID_AI_DB_PATH,
     isPackaged: app.isPackaged,
