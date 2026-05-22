@@ -186,10 +186,37 @@ function startBackend() {
  * Polls the backend health endpoint until it responds OK.
  * Gives the Python server up to 15 seconds to boot — this accounts for
  * cold-start time of the venv and SQLite schema migrations.
+ * If the process exits early (e.g. missing config), reports the failure
+ * immediately with stderr output rather than waiting the full timeout.
  */
 async function waitForBackend() {
   const startedAt = Date.now();
+  let backendExited = false;
+  let backendExitCode = null;
+  let backendStderr = "";
+
+  if (backendProcess) {
+    backendProcess.stderr.on("data", (chunk) => {
+      backendStderr += chunk.toString();
+    });
+    backendProcess.on("exit", (code) => {
+      backendExited = true;
+      backendExitCode = code;
+    });
+  }
+
   while (Date.now() - startedAt < 15000) {
+    if (backendExited && backendExitCode !== 0) {
+      const hint = app.isPackaged
+        ? `\n\nPlace your .env configuration file in:\n  ${path.join(app.getPath("userData"), ".env")}\n  or: ~/.config/tk-ai/.env`
+        : "";
+      const detail = backendStderr.trim()
+        ? `\n\n${backendStderr.trim().split("\n").slice(-5).join("\n")}`
+        : "";
+      throw new Error(
+        `The assistant API exited with code ${backendExitCode}.${detail}${hint}`,
+      );
+    }
     try {
       const response = await fetch(`${API_BASE_URL}/api/health`);
       if (response.ok) {
